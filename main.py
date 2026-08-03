@@ -7,7 +7,7 @@ from kivy.uix.button import Button
 from kivy.uix.scrollview import ScrollView
 from plyer import tts
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 def load_mem():
     if os.path.exists("memory.json"):
@@ -19,30 +19,29 @@ def save_mem(mem):
     with open("memory.json", "w") as f:
         json.dump(mem, f, indent=2)
 
-def ask_claude(text, mem):
-    system_prompt = f"""You are Jarvis, Samuel's personal AI assistant.
+def ask_cyrus(text, mem):
+    system_prompt = f"""You are Cyrus, Samuel's personal AI assistant.
 Name: {mem.get('name')}
 Goals: {mem.get('goals')}
 Projects: {mem.get('projects')}
 Notes: {mem.get('notes')}
 Tasks: {mem.get('tasks')}
 Be concise and direct."""
-    messages = mem["history"][-10:] + [{"role": "user", "content": text}]
+    history = mem["history"][-10:]
+    messages = [{"role": "system", "content": system_prompt}] + history + [{"role": "user", "content": text}]
     r = requests.post(
-        "https://api.anthropic.com/v1/messages",
+        "https://api.groq.com/openai/v1/chat/completions",
         headers={
-            "x-api-key": API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json"
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
         },
         json={
-            "model": "claude-haiku-4-5-20251001",
-            "max_tokens": 800,
-            "system": system_prompt,
-            "messages": messages
+            "model": "llama-3.3-70b-versatile",
+            "messages": messages,
+            "max_tokens": 800
         }
     )
-    reply = r.json()["content"][0]["text"]
+    reply = r.json()["choices"][0]["message"]["content"]
     mem["history"].append({"role": "user", "content": text})
     mem["history"].append({"role": "assistant", "content": reply})
     save_mem(mem)
@@ -65,13 +64,13 @@ def handle_builtin(text, mem):
         return json.dumps(mem, indent=2)
     return None
 
-class JarvisUI(BoxLayout):
+class CyrusUI(BoxLayout):
     def __init__(self, **kwargs):
         super().__init__(orientation="vertical", **kwargs)
         self.mem = load_mem()
 
         self.scroll = ScrollView()
-        self.chat_log = Label(size_hint_y=None, text="Jarvis is online.\n", halign="left", valign="top")
+        self.chat_log = Label(size_hint_y=None, text="Cyrus is online.\n", halign="left", valign="top")
         self.chat_log.bind(texture_size=self._update_height)
         self.scroll.add_widget(self.chat_log)
         self.add_widget(self.scroll)
@@ -100,8 +99,8 @@ class JarvisUI(BoxLayout):
         if not text.strip():
             return
         self.append_log("You", text)
-        reply = handle_builtin(text, self.mem) or ask_claude(text, self.mem)
-        self.append_log("Jarvis", reply)
+        reply = handle_builtin(text, self.mem) or ask_cyrus(text, self.mem)
+        self.append_log("Cyrus", reply)
         try:
             tts.speak(reply)
         except Exception:
@@ -113,11 +112,11 @@ class JarvisUI(BoxLayout):
         self.process(text)
 
     def voice_input(self, *a):
-        self.append_log("Jarvis", "Voice input wiring comes in the next update.")
+        self.append_log("Cyrus", "Voice input wiring comes in the next update.")
 
-class JarvisApp(App):
+class CyrusApp(App):
     def build(self):
-        return JarvisUI()
+        return CyrusUI()
 
 if __name__ == "__main__":
-    JarvisApp().run()
+    CyrusApp().run()
