@@ -1,6 +1,6 @@
 [app]
-title = Jarvis
-package.name = jarvis
+title = cyrus 
+package.name = cyrus 
 package.domain = org.samuel
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
