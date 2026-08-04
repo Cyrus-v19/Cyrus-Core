@@ -12,7 +12,7 @@ jobs:
       - name: Set up build environment
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential git zip unzip openjdk-17-jdk autoconf libtool pkg-config
+          sudo apt install -y python3-pip build-essential git zip unzip openjdk-17-jdk autoconf automake libtool libtool-bin autoconf-archive pkg-config m4
           pip install buildozer cython
       - name: Build APK
         env:
