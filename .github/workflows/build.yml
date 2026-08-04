@@ -2,7 +2,8 @@ name: Build Cyrus APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build:
@@ -11,20 +12,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up build environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system packages
         run: |
           sudo apt update
-          sudo apt install -y python3-pip build-essential git zip unzip openjdk-17-jdk autoconf automake libtool libtool-bin autoconf-archive pkg-config m4
-          python3 -m pip install --upgrade "pip==23.3.2"
-          python3 -m pip install --upgrade setuptools wheel
-          python3 -m pip install "buildozer==1.5.0" cython
+          sudo apt install -y \
+            python3-pip \
+            build-essential \
+            git \
+            zip \
+            unzip \
+            openjdk-17-jdk \
+            autoconf \
+            automake \
+            libtool \
+            libtool-bin \
+            autoconf-archive \
+            pkg-config \
+            m4
+
+      - name: Install Python packages
+        run: |
+          python -m pip install --upgrade pip==23.3.2
+          python -m pip install --upgrade setuptools wheel
+          python -m pip install Cython==0.29.37
+          python -m pip install buildozer==1.5.0
 
       - name: Build APK
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: buildozer -v android debug
+        run: |
+          buildozer -v android debug
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: cyrus-apk
