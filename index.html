@@ -52,18 +52,25 @@
   .user { background: var(--bubble-user); color: white; margin-left: auto; border-bottom-right-radius: 4px; }
   .bot { background: var(--bubble-bot); color: var(--text-primary); margin-right: auto; border-bottom-left-radius: 4px; }
   .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 14px; }
+  .msg img { max-width: 100%; border-radius: 10px; margin-top: 6px; display: block; }
+  .linkList { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .linkList a {
+    display: block; color: var(--accent); font-size: 13px; margin-top: 6px;
+    text-decoration: none; word-break: break-all;
+  }
   #inputRow {
-    display: flex; align-items: center; padding: 12px; gap: 8px;
+    display: flex; align-items: center; padding: 12px; gap: 6px;
     background: var(--sidebar); border-top: 1px solid var(--border);
     flex-shrink: 0;
   }
   #textInput {
     flex: 1; padding: 13px 16px; border-radius: 24px; border: 1px solid var(--border);
     background: var(--bg); color: var(--text-primary); font-size: 15px; outline: none;
+    min-width: 0;
   }
   #textInput::placeholder { color: var(--text-secondary); }
   .iconBtn {
-    border: none; border-radius: 50%; width: 46px; height: 46px;
+    border: none; border-radius: 50%; width: 44px; height: 44px;
     background: var(--bubble-user); color: white;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; cursor: pointer;
@@ -73,7 +80,18 @@
   .iconBtn:active { opacity: 0.75; }
   .iconBtn.mic { background: var(--bubble-bot); border: 1px solid var(--border); }
   .iconBtn.mic.listening { background: var(--accent); }
-  .iconBtn svg { width: 20px; height: 20px; pointer-events: none; }
+  .iconBtn.camera { background: var(--bubble-bot); border: 1px solid var(--border); }
+  .iconBtn svg { width: 19px; height: 19px; pointer-events: none; }
+  #imagePreview {
+    display: none; padding: 10px 12px; background: var(--sidebar);
+    border-top: 1px solid var(--border); align-items: center; gap: 10px;
+  }
+  #imagePreview img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+  #imagePreview span { color: var(--text-secondary); font-size: 13px; flex: 1; }
+  #imagePreview button {
+    background: none; border: none; color: var(--text-secondary); font-size: 20px;
+    cursor: pointer; touch-action: manipulation;
+  }
   #setup {
     padding: 24px; text-align: center; max-width: 340px; margin: auto;
     display: none; flex-direction: column;
@@ -113,7 +131,17 @@
 
 <div id="chat"></div>
 
+<div id="imagePreview">
+  <img id="previewImg" src="">
+  <span>Image ready to send</span>
+  <button onclick="clearImage()">×</button>
+</div>
+
 <div id="inputRow">
+  <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleImageSelect(event)">
+  <button class="iconBtn camera" onclick="document.getElementById('fileInput').click()" title="Send image">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </button>
   <button class="iconBtn mic" id="micBtn" onclick="startVoice()" title="Voice input">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
   </button>
@@ -127,6 +155,7 @@
 let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || {
   name: null, goals: [], projects: [], notes: [], tasks: [], history: []
 };
+let pendingImage = null;
 
 function saveMem() { localStorage.setItem('cyrus_mem', JSON.stringify(mem)); }
 function getKey() { return localStorage.getItem('cyrus_key'); }
@@ -137,10 +166,7 @@ function openSettings() {
   document.getElementById('serperKeyInput').value = getSerperKey() || '';
   document.getElementById('setup').style.display = 'flex';
 }
-
-function closeSettings() {
-  document.getElementById('setup').style.display = 'none';
-}
+function closeSettings() { document.getElementById('setup').style.display = 'none'; }
 
 function saveKey() {
   const k = document.getElementById('apiKeyInput').value.trim();
@@ -151,10 +177,10 @@ function saveKey() {
 }
 
 window.onload = function() {
-  if (!getKey()) {
-    document.getElementById('setup').style.display = 'flex';
-  }
-  mem.history.forEach(m => appendMsg(m.role === 'user' ? 'user' : 'bot', m.content));
+  if (!getKey()) document.getElementById('setup').style.display = 'flex';
+  mem.history.forEach(m => {
+    if (typeof m.content === 'string') appendMsg(m.role === 'user' ? 'user' : 'bot', m.content);
+  });
 };
 
 function appendMsg(who, text, extraClass) {
@@ -164,6 +190,24 @@ function appendMsg(who, text, extraClass) {
   document.getElementById('chat').appendChild(div);
   document.getElementById('chat').scrollTop = 999999;
   return div;
+}
+
+function appendMsgWithLinks(who, text, links) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.textContent = text;
+  if (links && links.length) {
+    const linkDiv = document.createElement('div');
+    linkDiv.className = 'linkList';
+    links.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.link; a.textContent = l.title; a.target = '_blank';
+      linkDiv.appendChild(a);
+    });
+    div.appendChild(linkDiv);
+  }
+  document.getElementById('chat').appendChild(div);
+  document.getElementById('chat').scrollTop = 999999;
 }
 
 function speak(text) {
@@ -183,6 +227,45 @@ function handleBuiltin(text) {
   if (t.startsWith('add task ')) { mem.tasks.push(text.slice(9)); saveMem(); return 'Task added.'; }
   if (t === 'show memory') { return JSON.stringify(mem, null, 2); }
   return null;
+}
+
+function handleImageSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    pendingImage = e.target.result;
+    document.getElementById('previewImg').src = pendingImage;
+    document.getElementById('imagePreview').style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImage() {
+  pendingImage = null;
+  document.getElementById('imagePreview').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+}
+
+async function analyzeImage(imageDataUrl, question) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "qwen/qwen3.6-27b",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: question || "Describe what you see in this image in detail." },
+          { type: "image_url", image_url: { url: imageDataUrl } }
+        ]
+      }],
+      max_tokens: 700
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.choices[0].message.content;
 }
 
 async function searchWeb(query) {
@@ -206,19 +289,20 @@ async function askCyrus(text, searchContext) {
 
   if (searchContext) {
     systemPrompt += '\n\nYou just searched the web and found this current information:\n' + searchContext +
-      '\n\nUse this information to answer the user\'s question accurately. Mention it\'s based on a live web search.';
+      '\n\nUse this information to answer accurately. Mention it\'s from a live web search.';
   }
 
   const messages = [{role:"system", content: systemPrompt}]
-    .concat(mem.history.slice(-10))
+    .concat(mem.history.filter(m => typeof m.content === 'string').slice(-10))
     .concat([{role:"user", content: text}]);
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: messages, max_tokens: 900 })
+    body: JSON.stringify({ model: "openai/gpt-oss-120b", messages: messages, max_tokens: 900 })
   });
   const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
   const reply = data.choices[0].message.content;
   mem.history.push({role:"user", content:text});
   mem.history.push({role:"assistant", content:reply});
@@ -227,22 +311,43 @@ async function askCyrus(text, searchContext) {
 }
 
 async function process(text) {
-  if (!text.trim()) return;
-  appendMsg('user', text);
+  if (!text.trim() && !pendingImage) return;
 
-  const builtin = handleBuiltin(text);
-  if (builtin) {
-    appendMsg('bot', builtin);
-    speak(builtin);
+  if (pendingImage) {
+    const imgDiv = document.createElement('div');
+    imgDiv.className = 'msg user';
+    if (text.trim()) imgDiv.appendChild(document.createTextNode(text));
+    const imgEl = document.createElement('img');
+    imgEl.src = pendingImage;
+    imgDiv.appendChild(imgEl);
+    document.getElementById('chat').appendChild(imgDiv);
+    document.getElementById('chat').scrollTop = 999999;
+
+    const loadingMsg = appendMsg('bot', 'Looking at the image...', 'searching');
+    try {
+      const reply = await analyzeImage(pendingImage, text);
+      loadingMsg.remove();
+      appendMsg('bot', reply);
+      speak(reply);
+    } catch (e) {
+      loadingMsg.remove();
+      appendMsg('bot', 'Image analysis failed: ' + e.message);
+    }
+    clearImage();
     return;
   }
 
+  appendMsg('user', text);
+  const builtin = handleBuiltin(text);
+  if (builtin) { appendMsg('bot', builtin); speak(builtin); return; }
+
   const t = text.toLowerCase().trim();
   let searchContext = null;
+  let links = null;
 
   if (t.startsWith('search ') || t.startsWith('search:')) {
     if (!getSerperKey()) {
-      appendMsg('bot', "I don't have web search set up yet. Tap the gear icon and add your Serper API key.");
+      appendMsg('bot', "I don't have web search set up. Tap the gear icon and add your Serper API key.");
       return;
     }
     const query = text.replace(/^search:?\s*/i, '');
@@ -252,11 +357,10 @@ async function process(text) {
       loadingMsg.remove();
       if (results) {
         let parts = [];
-        if (results.answerBox) {
-          parts.push('Direct answer: ' + (results.answerBox.answer || results.answerBox.snippet || ''));
-        }
+        if (results.answerBox) parts.push('Direct answer: ' + (results.answerBox.answer || results.answerBox.snippet || ''));
         if (results.organic) {
           parts.push(results.organic.slice(0, 5).map(r => r.title + ': ' + r.snippet).join('\n\n'));
+          links = results.organic.slice(0, 5).map(r => ({title: r.title, link: r.link}));
         }
         searchContext = parts.join('\n\n');
       }
@@ -267,9 +371,13 @@ async function process(text) {
     }
   }
 
-  const reply = await askCyrus(text, searchContext);
-  appendMsg('bot', reply);
-  speak(reply);
+  try {
+    const reply = await askCyrus(text, searchContext);
+    appendMsgWithLinks('bot', reply, links);
+    speak(reply);
+  } catch (e) {
+    appendMsg('bot', 'Something went wrong: ' + e.message);
+  }
 }
 
 function sendText() {
@@ -298,4 +406,4 @@ function startVoice() {
 </script>
 
 </body>
-     </html>
+ </html>
