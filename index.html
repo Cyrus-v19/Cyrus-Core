@@ -246,21 +246,40 @@ async function handleDocumentSelect(e) {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let text = "";
+      
+      // Try extracting text first
       for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         text += content.items.map(item => item.str).join(" ") + "\n";
       }
-      pendingDocText = text;
+
+      // If text exists, use it
+      if (text.trim().length > 20) {
+        pendingDocText = text;
+      } else {
+        // SCANNED PDF FALLBACK: Convert page 1 to image canvas for Vision!
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        const imgDataUrl = canvas.toDataURL('image/png');
+        
+        pendingImages.push(imgDataUrl);
+        pendingDocText = "";
+      }
     } else {
       pendingDocText = await file.text();
     }
   } catch(err) {
-    alert("Could not extract file text: " + err.message);
+    alert("Could not process file: " + err.message);
   }
   renderPreviews();
-}
-
+  }
 function renderPreviews() {
   const panel = document.getElementById('attachmentsPreview');
   panel.innerHTML = "";
