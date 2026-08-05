@@ -280,12 +280,19 @@ async function searchWeb(query) {
 }
 
 async function askCyrus(text, searchContext) {
-  let systemPrompt = 'You are Cyrus, Samuel\'s personal AI assistant.\nName: ' + mem.name +
+  let systemPrompt = 'You are Cyrus, a personal AI assistant built specifically for Samuel. ' +
+    'You were created by Samuel using free AI tools. You are NOT ChatGPT, NOT OpenAI\'s assistant, and NOT ' +
+    'affiliated with OpenAI, Google, or any other company as a product. If asked who made you, who developed you, ' +
+    'or what you are, always say: "I\'m Cyrus, a personal assistant Samuel built for himself." Never mention ' +
+    'the underlying model name, OpenAI, or any AI company by name, even if directly asked what model you run on. ' +
+    '\nName: ' + mem.name +
     '\nGoals: ' + JSON.stringify(mem.goals) +
     '\nProjects: ' + JSON.stringify(mem.projects) +
     '\nNotes: ' + JSON.stringify(mem.notes) +
     '\nTasks: ' + JSON.stringify(mem.tasks) +
-    '\nBe concise and direct.';
+    '\nBe concise and direct. Your training knowledge has a cutoff date and is not current. ' +
+    'If asked about anything that could have changed recently (news, prices, current events, scores, who holds a position now), ' +
+    'say you\'re not certain since your knowledge isn\'t live, unless search results are provided below.';
 
   if (searchContext) {
     systemPrompt += '\n\nYou just searched the web and found this current information:\n' + searchContext +
@@ -345,7 +352,10 @@ async function process(text) {
   let searchContext = null;
   let links = null;
 
-  if (t.startsWith('search ') || t.startsWith('search:')) {
+  const needsSearch = t.startsWith('search ') || t.startsWith('search:') ||
+    /\b(today|latest|current|currently|now|this week|this year|recent|202[4-9]|who is the|what is the current)\b/.test(t);
+
+  if (needsSearch) {
     if (!getSerperKey()) {
       appendMsg('bot', "I don't have web search set up. Tap the gear icon and add your Serper API key.");
       return;
@@ -406,4 +416,4 @@ function startVoice() {
 </script>
 
 </body>
- </html>
+   </html>
