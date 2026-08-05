@@ -314,7 +314,11 @@ async function askCyrus(text, searchContext) {
 
   if (searchContext) {
     systemPrompt += '\n\nYou just searched the web and found this current information:\n' + searchContext +
-      '\n\nUse this information to answer accurately. Mention it\'s from a live web search.';
+      '\n\nCRITICAL: Only state facts, teams, times, or details that are explicitly present in the search results above. ' +
+      'Do NOT invent, guess, or fill in any match, name, date, or detail not literally present in the text above. ' +
+      'If the search results are incomplete, vague, or do not clearly answer the question, say so directly instead of ' +
+      'making up plausible-sounding details. It is much better to say "the search didn\'t return clear results for this" ' +
+      'than to guess. Mention this is from a live web search.';
   }
 
   const messages = [{role:"system", content: systemPrompt}]
@@ -364,7 +368,7 @@ async function runMorningCheck() {
   }
   mem.notes.push('Morning check run - ' + new Date().toDateString());
   saveMem();
-  const reply = await askCyrus("Give me a short, friendly morning summary of today's football fixtures based on this search data, then remind me of my current tasks.", result.text);
+  const reply = await askCyrus("Give me a short, friendly morning summary of today's football fixtures based strictly on this search data only, then remind me of my current tasks.", result.text);
   appendMsgWithLinks('bot', reply, result.links);
   speak(reply);
 }
@@ -376,7 +380,7 @@ async function runDailyBrief() {
   const dateStr = new Date().toDateString();
   const taskList = mem.tasks.length ? mem.tasks.join(', ') : 'no tasks saved right now';
   const prompt = "Give me a short daily brief. Today is " + dateStr + ". My current tasks are: " + taskList +
-    ". Include a quick summary of today's top news from the search data, then list my tasks clearly.";
+    ". Include a quick summary of today's top news based strictly on the search data provided, then list my tasks clearly.";
   const reply = await askCyrus(prompt, result.text);
   appendMsgWithLinks('bot', reply, result.links);
   speak(reply);
