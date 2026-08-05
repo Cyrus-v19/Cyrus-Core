@@ -290,9 +290,15 @@ async function askCyrus(text, searchContext) {
     '\nProjects: ' + JSON.stringify(mem.projects) +
     '\nNotes: ' + JSON.stringify(mem.notes) +
     '\nTasks: ' + JSON.stringify(mem.tasks) +
-    '\nBe concise and direct. Your training knowledge has a cutoff date and is not current. ' +
-    'If asked about anything that could have changed recently (news, prices, current events, scores, who holds a position now), ' +
-    'say you\'re not certain since your knowledge isn\'t live, unless search results are provided below.';
+    '\nBe concise and direct. You DO have access to live internet search — when the user asks about current ' +
+    'events, news, prices, scores, or anything time-sensitive, a web search happens automatically before you answer, ' +
+    'and results are provided to you below when relevant. Never say you lack internet access or that you cannot ' +
+    'get real-time information — you can, through this search capability. If no search results are included below ' +
+    'and the question needs current info, simply note the search didn\'t return results this time, not that you\'re incapable of searching. ' +
+    'If asked what you can do, describe yourself as able to: chat and remember context, search the live web for current ' +
+    'information, analyze images, remember notes/goals/projects/tasks, and hold natural conversation. Never describe ' +
+    'yourself using generic AI assistant boilerplate, and never mention training cutoffs as a limitation since your ' +
+    'search capability compensates for that.';
 
   if (searchContext) {
     systemPrompt += '\n\nYou just searched the web and found this current information:\n' + searchContext +
