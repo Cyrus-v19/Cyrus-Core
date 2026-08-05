@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Cyrus</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,17 +16,23 @@
     --accent: #10A37F;
     --border: #374151;
   }
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: var(--bg); color: var(--text-primary);
-    height: 100vh; display: flex; flex-direction: column;
+    height: 100dvh; display: flex; flex-direction: column;
     overflow: hidden;
+    position: fixed; width: 100%; top: 0; left: 0;
   }
   #header {
     padding: 16px; background: var(--sidebar); text-align: center;
     font-weight: 600; font-size: 17px; letter-spacing: 0.3px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center; gap: 8px;
+    flex-shrink: 0;
   }
   #header .dot {
     width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
@@ -34,6 +40,7 @@
   #chat {
     flex: 1; overflow-y: auto; padding: 16px 12px;
     display: flex; flex-direction: column;
+    -webkit-overflow-scrolling: touch;
   }
   .msg {
     margin: 6px 0; padding: 11px 15px; border-radius: 16px;
@@ -51,6 +58,7 @@
   #inputRow {
     display: flex; align-items: center; padding: 12px; gap: 8px;
     background: var(--sidebar); border-top: 1px solid var(--border);
+    flex-shrink: 0;
   }
   #textInput {
     flex: 1; padding: 13px 16px; border-radius: 24px; border: 1px solid var(--border);
@@ -62,11 +70,13 @@
     background: var(--bubble-user); color: white;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0; cursor: pointer;
+    position: relative; z-index: 10;
+    touch-action: manipulation;
   }
   .iconBtn:active { opacity: 0.75; }
   .iconBtn.mic { background: var(--bubble-bot); border: 1px solid var(--border); }
   .iconBtn.mic.listening { background: var(--accent); }
-  .iconBtn svg { width: 20px; height: 20px; }
+  .iconBtn svg { width: 20px; height: 20px; pointer-events: none; }
 
   #setup {
     padding: 24px; text-align: center; max-width: 340px; margin: auto;
@@ -80,6 +90,7 @@
   #setup button {
     width: 100%; border-radius: 10px; padding: 13px; border: none;
     background: var(--accent); color: white; font-size: 15px; font-weight: 600;
+    touch-action: manipulation;
   }
 </style>
 </head>
@@ -228,4 +239,4 @@ function startVoice() {
 </script>
 
 </body>
- </html>
+</html>
