@@ -468,4 +468,13 @@ function startVoice() {
   const micBtn = document.getElementById('micBtn');
   const rec = new Recognition();
   rec.lang = 'en-US';
-  micBtn.clas
+  micBtn.classList.add('listening');
+  rec.onresult = (e) => { process(e.results[0][0].transcript); };
+  rec.onend = () => micBtn.classList.remove('listening');
+  rec.onerror = () => micBtn.classList.remove('listening');
+  rec.start();
+}
+</script>
+
+</body>
+</html>
