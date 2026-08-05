@@ -505,7 +505,12 @@ if (currentDoc) {
   systemPrompt += "--- DOCUMENT END ---";
 }
 
-const isDeepResearch = currentText.toLowerCase().includes("research") || currentText.toLowerCase().includes("search");
+const searchKeywords = [
+  "search", "research", "news", "latest", "today", "current", 
+  "who is", "price", "weather", "score", "live", "recent", "what happened"
+];
+
+const isDeepResearch = searchKeywords.some(keyword => currentText.toLowerCase().includes(keyword));
 let searchLinks = [];
 
 if (isDeepResearch && getSerperKey()) {
