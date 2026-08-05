@@ -16,10 +16,7 @@
     --accent: #10A37F;
     --border: #374151;
   }
-  html, body {
-    height: 100%;
-    overscroll-behavior: none;
-  }
+  html, body { height: 100%; overscroll-behavior: none; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: var(--bg); color: var(--text-primary);
@@ -32,11 +29,16 @@
     font-weight: 600; font-size: 17px; letter-spacing: 0.3px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    flex-shrink: 0;
+    flex-shrink: 0; position: relative;
   }
-  #header .dot {
-    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  #header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  #settingsBtn {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    width: 36px; height: 36px; background: transparent; color: var(--text-secondary);
+    border: none; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; touch-action: manipulation;
   }
+  #settingsBtn svg { width: 20px; height: 20px; pointer-events: none; }
   #chat {
     flex: 1; overflow-y: auto; padding: 16px 12px;
     display: flex; flex-direction: column;
@@ -47,17 +49,9 @@
     max-width: 78%; line-height: 1.45; font-size: 15px;
     white-space: pre-wrap; word-wrap: break-word;
   }
-  .user {
-    background: var(--bubble-user); color: white;
-    margin-left: auto; border-bottom-right-radius: 4px;
-  }
-  .bot {
-    background: var(--bubble-bot); color: var(--text-primary);
-    margin-right: auto; border-bottom-left-radius: 4px;
-  }
-  .msg.searching {
-    color: var(--text-secondary); font-style: italic; font-size: 14px;
-  }
+  .user { background: var(--bubble-user); color: white; margin-left: auto; border-bottom-right-radius: 4px; }
+  .bot { background: var(--bubble-bot); color: var(--text-primary); margin-right: auto; border-bottom-left-radius: 4px; }
+  .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 14px; }
   #inputRow {
     display: flex; align-items: center; padding: 12px; gap: 8px;
     background: var(--sidebar); border-top: 1px solid var(--border);
@@ -80,9 +74,9 @@
   .iconBtn.mic { background: var(--bubble-bot); border: 1px solid var(--border); }
   .iconBtn.mic.listening { background: var(--accent); }
   .iconBtn svg { width: 20px; height: 20px; pointer-events: none; }
-
   #setup {
     padding: 24px; text-align: center; max-width: 340px; margin: auto;
+    display: none; flex-direction: column;
   }
   #setup p { color: var(--text-secondary); margin-bottom: 8px; font-size: 15px; }
   #setup input {
@@ -93,22 +87,28 @@
   #setup button {
     width: 100%; border-radius: 10px; padding: 13px; border: none;
     background: var(--accent); color: white; font-size: 15px; font-weight: 600;
-    touch-action: manipulation;
-    margin-bottom: 20px;
+    touch-action: manipulation; margin-bottom: 12px;
   }
+  #setup .closeBtn { background: var(--bubble-bot); border: 1px solid var(--border); }
   #setup label { display: block; margin-top: 16px; margin-bottom: 4px; color: var(--text-secondary); font-size: 13px; text-align: left; }
 </style>
 </head>
 <body>
 
-<div id="header"><span class="dot"></span>Cyrus</div>
+<div id="header">
+  <span class="dot"></span>Cyrus
+  <button id="settingsBtn" onclick="openSettings()" title="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</div>
 
-<div id="setup" style="display:none;">
+<div id="setup">
   <label>Groq API key (free)</label>
   <input type="text" id="apiKeyInput" placeholder="gsk_...">
   <label>Serper API key (free, for web search)</label>
   <input type="text" id="serperKeyInput" placeholder="your serper key">
-  <button onclick="saveKey()">Save & Start</button>
+  <button onclick="saveKey()">Save</button>
+  <button class="closeBtn" onclick="closeSettings()">Cancel</button>
 </div>
 
 <div id="chat"></div>
@@ -128,19 +128,26 @@ let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || {
   name: null, goals: [], projects: [], notes: [], tasks: [], history: []
 };
 
-function saveMem() {
-  localStorage.setItem('cyrus_mem', JSON.stringify(mem));
-}
-
+function saveMem() { localStorage.setItem('cyrus_mem', JSON.stringify(mem)); }
 function getKey() { return localStorage.getItem('cyrus_key'); }
 function getSerperKey() { return localStorage.getItem('cyrus_serper_key'); }
+
+function openSettings() {
+  document.getElementById('apiKeyInput').value = getKey() || '';
+  document.getElementById('serperKeyInput').value = getSerperKey() || '';
+  document.getElementById('setup').style.display = 'flex';
+}
+
+function closeSettings() {
+  document.getElementById('setup').style.display = 'none';
+}
 
 function saveKey() {
   const k = document.getElementById('apiKeyInput').value.trim();
   const sk = document.getElementById('serperKeyInput').value.trim();
   if (k) localStorage.setItem('cyrus_key', k);
   if (sk) localStorage.setItem('cyrus_serper_key', sk);
-  if (k) document.getElementById('setup').style.display = 'none';
+  document.getElementById('setup').style.display = 'none';
 }
 
 window.onload = function() {
@@ -183,14 +190,10 @@ async function searchWeb(query) {
   if (!serperKey) return null;
   const res = await fetch("https://google.serper.dev/search", {
     method: "POST",
-    headers: {
-      "X-API-KEY": serperKey,
-      "Content-Type": "application/json"
-    },
+    headers: { "X-API-KEY": serperKey, "Content-Type": "application/json" },
     body: JSON.stringify({ q: query })
   });
-  const data = await res.json();
-  return data;
+  return await res.json();
 }
 
 async function askCyrus(text, searchContext) {
@@ -212,15 +215,8 @@ async function askCyrus(text, searchContext) {
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Authorization": "Bearer " + getKey(),
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: messages,
-      max_tokens: 900
-    })
+    headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "llama-3.3-70b-versatile", messages: messages, max_tokens: 900 })
   });
   const data = await res.json();
   const reply = data.choices[0].message.content;
@@ -246,7 +242,7 @@ async function process(text) {
 
   if (t.startsWith('search ') || t.startsWith('search:')) {
     if (!getSerperKey()) {
-      appendMsg('bot', "I don't have web search set up yet. Add your Serper API key first.");
+      appendMsg('bot', "I don't have web search set up yet. Tap the gear icon and add your Serper API key.");
       return;
     }
     const query = text.replace(/^search:?\s*/i, '');
@@ -294,10 +290,7 @@ function startVoice() {
   const rec = new Recognition();
   rec.lang = 'en-US';
   micBtn.classList.add('listening');
-  rec.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    process(text);
-  };
+  rec.onresult = (e) => { process(e.results[0][0].transcript); };
   rec.onend = () => micBtn.classList.remove('listening');
   rec.onerror = () => micBtn.classList.remove('listening');
   rec.start();
@@ -305,4 +298,4 @@ function startVoice() {
 </script>
 
 </body>
- </html>
+     </html>
