@@ -55,6 +55,9 @@
     background: var(--bubble-bot); color: var(--text-primary);
     margin-right: auto; border-bottom-left-radius: 4px;
   }
+  .msg.searching {
+    color: var(--text-secondary); font-style: italic; font-size: 14px;
+  }
   #inputRow {
     display: flex; align-items: center; padding: 12px; gap: 8px;
     background: var(--sidebar); border-top: 1px solid var(--border);
@@ -81,7 +84,7 @@
   #setup {
     padding: 24px; text-align: center; max-width: 340px; margin: auto;
   }
-  #setup p { color: var(--text-secondary); margin-bottom: 16px; font-size: 15px; }
+  #setup p { color: var(--text-secondary); margin-bottom: 8px; font-size: 15px; }
   #setup input {
     width: 100%; padding: 13px; margin-bottom: 12px; border-radius: 10px;
     border: 1px solid var(--border); background: var(--sidebar); color: var(--text-primary);
@@ -91,7 +94,9 @@
     width: 100%; border-radius: 10px; padding: 13px; border: none;
     background: var(--accent); color: white; font-size: 15px; font-weight: 600;
     touch-action: manipulation;
+    margin-bottom: 20px;
   }
+  #setup label { display: block; margin-top: 16px; margin-bottom: 4px; color: var(--text-secondary); font-size: 13px; text-align: left; }
 </style>
 </head>
 <body>
@@ -99,9 +104,11 @@
 <div id="header"><span class="dot"></span>Cyrus</div>
 
 <div id="setup" style="display:none;">
-  <p>Enter your free Groq API key to get started</p>
+  <label>Groq API key (free)</label>
   <input type="text" id="apiKeyInput" placeholder="gsk_...">
-  <button onclick="saveKey()">Save</button>
+  <label>Serper API key (free, for web search)</label>
+  <input type="text" id="serperKeyInput" placeholder="your serper key">
+  <button onclick="saveKey()">Save & Start</button>
 </div>
 
 <div id="chat"></div>
@@ -126,13 +133,14 @@ function saveMem() {
 }
 
 function getKey() { return localStorage.getItem('cyrus_key'); }
+function getSerperKey() { return localStorage.getItem('cyrus_serper_key'); }
 
 function saveKey() {
   const k = document.getElementById('apiKeyInput').value.trim();
-  if (k) {
-    localStorage.setItem('cyrus_key', k);
-    document.getElementById('setup').style.display = 'none';
-  }
+  const sk = document.getElementById('serperKeyInput').value.trim();
+  if (k) localStorage.setItem('cyrus_key', k);
+  if (sk) localStorage.setItem('cyrus_serper_key', sk);
+  if (k) document.getElementById('setup').style.display = 'none';
 }
 
 window.onload = function() {
@@ -142,12 +150,13 @@ window.onload = function() {
   mem.history.forEach(m => appendMsg(m.role === 'user' ? 'user' : 'bot', m.content));
 };
 
-function appendMsg(who, text) {
+function appendMsg(who, text, extraClass) {
   const div = document.createElement('div');
-  div.className = 'msg ' + who;
+  div.className = 'msg ' + who + (extraClass ? ' ' + extraClass : '');
   div.textContent = text;
   document.getElementById('chat').appendChild(div);
   document.getElementById('chat').scrollTop = 999999;
+  return div;
 }
 
 function speak(text) {
@@ -169,13 +178,33 @@ function handleBuiltin(text) {
   return null;
 }
 
-async function askCyrus(text) {
-  const systemPrompt = 'You are Cyrus, Samuel\'s personal AI assistant.\nName: ' + mem.name +
+async function searchWeb(query) {
+  const serperKey = getSerperKey();
+  if (!serperKey) return null;
+  const res = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: {
+      "X-API-KEY": serperKey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ q: query })
+  });
+  const data = await res.json();
+  return data;
+}
+
+async function askCyrus(text, searchContext) {
+  let systemPrompt = 'You are Cyrus, Samuel\'s personal AI assistant.\nName: ' + mem.name +
     '\nGoals: ' + JSON.stringify(mem.goals) +
     '\nProjects: ' + JSON.stringify(mem.projects) +
     '\nNotes: ' + JSON.stringify(mem.notes) +
     '\nTasks: ' + JSON.stringify(mem.tasks) +
     '\nBe concise and direct.';
+
+  if (searchContext) {
+    systemPrompt += '\n\nYou just searched the web and found this current information:\n' + searchContext +
+      '\n\nUse this information to answer the user\'s question accurately. Mention it\'s based on a live web search.';
+  }
 
   const messages = [{role:"system", content: systemPrompt}]
     .concat(mem.history.slice(-10))
@@ -190,7 +219,7 @@ async function askCyrus(text) {
     body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
       messages: messages,
-      max_tokens: 800
+      max_tokens: 900
     })
   });
   const data = await res.json();
@@ -204,8 +233,45 @@ async function askCyrus(text) {
 async function process(text) {
   if (!text.trim()) return;
   appendMsg('user', text);
+
   const builtin = handleBuiltin(text);
-  const reply = builtin || await askCyrus(text);
+  if (builtin) {
+    appendMsg('bot', builtin);
+    speak(builtin);
+    return;
+  }
+
+  const t = text.toLowerCase().trim();
+  let searchContext = null;
+
+  if (t.startsWith('search ') || t.startsWith('search:')) {
+    if (!getSerperKey()) {
+      appendMsg('bot', "I don't have web search set up yet. Add your Serper API key first.");
+      return;
+    }
+    const query = text.replace(/^search:?\s*/i, '');
+    const loadingMsg = appendMsg('bot', 'Searching the web...', 'searching');
+    try {
+      const results = await searchWeb(query);
+      loadingMsg.remove();
+      if (results) {
+        let parts = [];
+        if (results.answerBox) {
+          parts.push('Direct answer: ' + (results.answerBox.answer || results.answerBox.snippet || ''));
+        }
+        if (results.organic) {
+          parts.push(results.organic.slice(0, 5).map(r => r.title + ': ' + r.snippet).join('\n\n'));
+        }
+        searchContext = parts.join('\n\n');
+      }
+    } catch (e) {
+      loadingMsg.remove();
+      appendMsg('bot', 'Search failed: ' + e.message);
+      return;
+    }
+  }
+
+  const reply = await askCyrus(text, searchContext);
   appendMsg('bot', reply);
   speak(reply);
 }
@@ -239,4 +305,4 @@ function startVoice() {
 </script>
 
 </body>
-</html>
+ </html>
