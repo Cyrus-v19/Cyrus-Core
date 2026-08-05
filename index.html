@@ -198,7 +198,13 @@ let pendingImages = [];
 let pendingDocText = "";
 let pendingDocName = "";
 
-function saveMem() { localStorage.setItem('cyrus_mem', JSON.stringify(mem)); }
+function saveMem() { 
+  // Keep only the last 100 messages to prevent storage overflow
+  if (mem.history.length > 100) {
+    mem.history = mem.history.slice(-100);
+  }
+  localStorage.setItem('cyrus_mem', JSON.stringify(mem)); 
+}
 function getKey() { return localStorage.getItem('cyrus_key'); }
 function getSerperKey() { return localStorage.getItem('cyrus_serper_key'); }
 
@@ -390,25 +396,26 @@ async function streamCyrusResponse(messages, botDiv) {
   let fullText = "";
 
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value);
-    const lines = chunk.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("data: ") && line !== "data: [DONE]") {
-        try {
-          const parsed = JSON.parse(line.substring(6));
-          const content = parsed.choices[0]?.delta?.content || "";
-          fullText += content;
-          botDiv.innerHTML = marked.parse(fullText);
-          document.getElementById('chat').scrollTop = 999999;
-        } catch (e) {}
-      }
+  const { done, value } = await reader.read();
+  if (done) break;
+  const chunk = decoder.decode(value);
+  const lines = chunk.split("\n");
+  for (const line of lines) {
+    if (line.startsWith("data: ") && line !== "data: [DONE]") {
+      try {
+        const parsed = JSON.parse(line.substring(6));
+        const content = parsed.choices[0]?.delta?.content || "";
+        fullText += content;
+        botDiv.textContent = fullText;
+        document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+      } catch (e) {}
     }
   }
+}
 
-  applyHighlighting(botDiv);
-  return fullText;
+botDiv.innerHTML = marked.parse(fullText);
+applyHighlighting(botDiv);
+return fullText;
 }
 
 async function analyzeMultipleImages(images, question) {
@@ -471,20 +478,30 @@ async function process(text) {
       mem.history.push({ role: "user", content: currentText || "Image request" });
       mem.history.push({ role: "assistant", content: reply });
       saveMem();
+      renderFollowups(["Explain in detail", "What else is in this image?"]);
     } catch (e) {
       statusMsg.remove();
       appendMsg('bot', "Vision processing error: " + e.message);
     }
     return;
- }
+      }
 
 let systemPrompt = "You are Cyrus, a personal assistant built by Samuel. Be concise, direct, and factual.";
 
+if (mem.name) {
+  systemPrompt += `\n\nThe user's name is ${mem.name}.`;
+}
+
 if (currentDoc) {
+  const maxDocChars = 50000; // Expands PDF capacity to ~15-20 pages
+  const docContent = currentDoc.length > maxDocChars 
+    ? currentDoc.slice(0, maxDocChars) + "\n[Note: Document truncated due to length limits]" 
+    : currentDoc;
+
   systemPrompt += "\n\nCRITICAL INSTRUCTION: Document uploaded: " + currentDocName + "\n";
   systemPrompt += "Answer ONLY using this content:\n";
   systemPrompt += "--- DOCUMENT START ---\n";
-  systemPrompt += currentDoc.slice(0, 10000) + "\n";
+  systemPrompt += docContent + "\n";
   systemPrompt += "--- DOCUMENT END ---";
 }
 
@@ -498,7 +515,7 @@ if (isDeepResearch && getSerperKey()) {
 }
 
 // Clear memory slice when analyzing a doc to prevent old context leakage
-const historySlice = currentDoc ? [] : mem.history.slice(-6);
+const historySlice = currentDoc ? mem.history.slice(-4) : mem.history.slice(-20);
 
 const messages = [{ role: "system", content: systemPrompt }]
   .concat(historySlice)
