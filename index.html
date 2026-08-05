@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cyrus</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, sans-serif;
+    background: #0d0d12; color: #eee; height: 100vh;
+    display: flex; flex-direction: column;
+  }
+  #header {
+    padding: 14px; background: #16161f; text-align: center;
+    font-weight: bold; font-size: 18px; border-bottom: 1px solid #2a2a35;
+  }
+  #chat {
+    flex: 1; overflow-y: auto; padding: 12px;
+  }
+  .msg { margin: 8px 0; padding: 10px 14px; border-radius: 14px; max-width: 80%; line-height: 1.4; }
+  .user { background: #3a5ba0; margin-left: auto; text-align: right; }
+  .bot { background: #1e1e2a; margin-right: auto; }
+  #inputRow {
+    display: flex; padding: 10px; background: #16161f; gap: 8px;
+  }
+  #textInput {
+    flex: 1; padding: 12px; border-radius: 20px; border: none;
+    background: #24242f; color: #eee; font-size: 16px;
+  }
+  button {
+    border: none; border-radius: 50%; width: 46px; height: 46px;
+    background: #3a5ba0; color: white; font-size: 18px;
+  }
+  #setup {
+    padding: 20px; text-align: center;
+  }
+  #setup input { width: 90%; padding: 10px; margin: 10px 0; border-radius: 8px; border: none; }
+  #setup button { width: 90%; border-radius: 8px; padding: 12px; }
+</style>
+</head>
+<body>
+
+<div id="header">Cyrus</div>
+
+<div id="setup" style="display:none;">
+  <p>Enter your free Groq API key to get started</p>
+  <input type="text" id="apiKeyInput" placeholder="gsk_...">
+  <button onclick="saveKey()">Save</button>
+</div>
+
+<div id="chat"></div>
+
+<div id="inputRow">
+  <button onclick="startVoice()">Mic</button>
+  <input type="text" id="textInput" placeholder="Message Cyrus...">
+  <button onclick="sendText()">Send</button>
+</div>
+
+<script>
+let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || {
+  name: null, goals: [], projects: [], notes: [], tasks: [], history: []
+};
+
+function saveMem() {
+  localStorage.setItem('cyrus_mem', JSON.stringify(mem));
+}
+
+function getKey() { return localStorage.getItem('cyrus_key'); }
+
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  if (k) {
+    localStorage.setItem('cyrus_key', k);
+    document.getElementById('setup').style.display = 'none';
+  }
+}
+
+window.onload = function() {
+  if (!getKey()) {
+    document.getElementById('setup').style.display = 'block';
+  }
+  mem.history.forEach(m => appendMsg(m.role === 'user' ? 'user' : 'bot', m.content));
+};
+
+function appendMsg(who, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.textContent = text;
+  document.getElementById('chat').appendChild(div);
+  document.getElementById('chat').scrollTop = 999999;
+}
+
+function speak(text) {
+  const u = new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(u);
+}
+
+function handleBuiltin(text) {
+  const t = text.toLowerCase().trim();
+  if (t.startsWith('remember my name is')) {
+    mem.name = text.slice(20).trim(); saveMem();
+    return 'Got it, ' + mem.name + '.';
+  }
+  if (t.startsWith('add goal ')) { mem.goals.push(text.slice(9)); saveMem(); return 'Goal added.'; }
+  if (t.startsWith('add project ')) { mem.projects.push(text.slice(12)); saveMem(); return 'Project added.'; }
+  if (t.startsWith('add note ')) { mem.notes.push(text.slice(9)); saveMem(); return 'Note saved.'; }
+  if (t.startsWith('add task ')) { mem.tasks.push(text.slice(9)); saveMem(); return 'Task added.'; }
+  if (t === 'show memory') { return JSON.stringify(mem, null, 2); }
+  return null;
+}
+
+async function askCyrus(text) {
+  const systemPrompt = 'You are Cyrus, Samuel\'s personal AI assistant.\nName: ' + mem.name +
+    '\nGoals: ' + JSON.stringify(mem.goals) +
+    '\nProjects: ' + JSON.stringify(mem.projects) +
+    '\nNotes: ' + JSON.stringify(mem.notes) +
+    '\nTasks: ' + JSON.stringify(mem.tasks) +
+    '\nBe concise and direct.';
+
+  const messages = [{role:"system", content: systemPrompt}]
+    .concat(mem.history.slice(-10))
+    .concat([{role:"user", content: text}]);
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + getKey(),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: messages,
+      max_tokens: 800
+    })
+  });
+  const data = await res.json();
+  const reply = data.choices[0].message.content;
+  mem.history.push({role:"user", content:text});
+  mem.history.push({role:"assistant", content:reply});
+  saveMem();
+  return reply;
+}
+
+async function process(text) {
+  if (!text.trim()) return;
+  appendMsg('user', text);
+  const builtin = handleBuiltin(text);
+  const reply = builtin || await askCyrus(text);
+  appendMsg('bot', reply);
+  speak(reply);
+}
+
+function sendText() {
+  const input = document.getElementById('textInput');
+  const text = input.value;
+  input.value = '';
+  process(text);
+}
+
+document.getElementById('textInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') sendText();
+});
+
+function startVoice() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { alert('Voice not supported on this browser'); return; }
+  const rec = new Recognition();
+  rec.lang = 'en-US';
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    process(text);
+  };
+  rec.start();
+}
+</script>
+
+</body>
+  </html>
