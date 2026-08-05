@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Cyrus</title>
+<title>Cyrus AI</title>
+
+<!-- Markdown & Syntax Highlighting Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+
+<!-- PDF Parsing Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -18,11 +28,10 @@
   }
   html, body { height: 100%; overscroll-behavior: none; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg); color: var(--text-primary);
     height: 100dvh; display: flex; flex-direction: column;
-    overflow: hidden;
-    position: fixed; width: 100%; top: 0; left: 0;
+    overflow: hidden; position: fixed; width: 100%; top: 0; left: 0;
   }
   #header {
     padding: 16px; background: var(--sidebar); text-align: center;
@@ -36,127 +45,166 @@
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
     width: 36px; height: 36px; background: transparent; color: var(--text-secondary);
     border: none; display: flex; align-items: center; justify-content: center;
-    cursor: pointer; touch-action: manipulation;
+    cursor: pointer; touch-action: manipulation; transition: transform 0.2s ease;
   }
-  #settingsBtn svg { width: 20px; height: 20px; pointer-events: none; }
+  #settingsBtn:hover { transform: translateY(-50%) rotate(30deg); color: var(--text-primary); }
+  
   #chat {
     flex: 1; overflow-y: auto; padding: 16px 12px;
-    display: flex; flex-direction: column;
+    display: flex; flex-direction: column; gap: 12px;
     -webkit-overflow-scrolling: touch;
   }
   .msg {
-    margin: 6px 0; padding: 11px 15px; border-radius: 16px;
-    max-width: 78%; line-height: 1.45; font-size: 15px;
-    white-space: pre-wrap; word-wrap: break-word;
+    padding: 12px 16px; border-radius: 16px;
+    max-width: 85%; line-height: 1.5; font-size: 15px;
+    word-wrap: break-word; animation: fadeIn 0.25s ease-in-out;
   }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  
   .user { background: var(--bubble-user); color: white; margin-left: auto; border-bottom-right-radius: 4px; }
   .bot { background: var(--bubble-bot); color: var(--text-primary); margin-right: auto; border-bottom-left-radius: 4px; }
-  .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 14px; }
-  .msg img { max-width: 100%; border-radius: 10px; margin-top: 6px; display: block; }
+  
+  /* Markdown styling inside bot messages */
+  .bot p { margin-bottom: 8px; }
+  .bot p:last-child { margin-bottom: 0; }
+  .bot ul, .bot ol { margin: 8px 0 8px 20px; }
+  .bot h1, .bot h2, .bot h3 { margin: 12px 0 6px 0; font-size: 1.1em; }
+  .bot code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 14px; }
+  .bot pre { background: #000; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+  .bot pre code { background: none; padding: 0; }
+
+  .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 14px; background: transparent; border: 1px dashed var(--border); }
+  
+  /* Image Gallery inside user messages */
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; margin-top: 8px; }
+  .img-grid img { width: 100%; height: 80px; object-fit: cover; border-radius: 8px; }
+
+  /* Links & Source citations */
   .linkList { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-  .linkList a {
-    display: block; color: var(--accent); font-size: 13px; margin-top: 6px;
-    text-decoration: none; word-break: break-all;
+  .linkList a { display: block; color: var(--accent); font-size: 13px; margin-top: 4px; text-decoration: none; word-break: break-all; }
+
+  /* Dynamic Follow-up Chips */
+  .followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    background: rgba(16, 163, 127, 0.15); border: 1px solid var(--accent); color: var(--accent);
+    padding: 6px 12px; border-radius: 16px; font-size: 13px; cursor: pointer;
+    transition: all 0.2s ease;
   }
+  .chip:hover { background: var(--accent); color: white; transform: translateY(-1px); }
+
+  /* Attachments Preview Panel */
+  #attachmentsPreview {
+    display: none; padding: 10px 12px; background: var(--sidebar);
+    border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  .preview-card {
+    position: relative; display: flex; align-items: center; gap: 6px;
+    background: var(--bg); border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; font-size: 12px;
+  }
+  .preview-card img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
+  .preview-card .remove { cursor: pointer; color: var(--text-secondary); font-weight: bold; margin-left: 4px; }
+  .preview-card .remove:hover { color: #EF4444; }
+
+  /* Input Bar */
   #inputRow {
-    display: flex; align-items: center; padding: 12px; gap: 6px;
+    display: flex; align-items: center; padding: 12px; gap: 8px;
     background: var(--sidebar); border-top: 1px solid var(--border);
     flex-shrink: 0;
   }
   #textInput {
-    flex: 1; padding: 13px 16px; border-radius: 24px; border: 1px solid var(--border);
+    flex: 1; padding: 12px 16px; border-radius: 24px; border: 1px solid var(--border);
     background: var(--bg); color: var(--text-primary); font-size: 15px; outline: none;
-    min-width: 0;
+    transition: border-color 0.2s;
   }
-  #textInput::placeholder { color: var(--text-secondary); }
+  #textInput:focus { border-color: var(--accent); }
   .iconBtn {
-    border: none; border-radius: 50%; width: 44px; height: 44px;
+    border: none; border-radius: 50%; width: 42px; height: 42px;
     background: var(--bubble-user); color: white;
     display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; cursor: pointer;
-    position: relative; z-index: 10;
+    flex-shrink: 0; cursor: pointer; transition: all 0.2s ease;
     touch-action: manipulation;
   }
-  .iconBtn:active { opacity: 0.75; }
-  .iconBtn.mic { background: var(--bubble-bot); border: 1px solid var(--border); }
-  .iconBtn.mic.listening { background: var(--accent); }
-  .iconBtn.camera { background: var(--bubble-bot); border: 1px solid var(--border); }
+  .iconBtn:hover { transform: scale(1.05); }
+  .iconBtn:active { transform: scale(0.95); opacity: 0.8; }
+  .iconBtn.secondary { background: var(--bubble-bot); border: 1px solid var(--border); }
+  .iconBtn.listening { background: var(--accent); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.6); } 70% { box-shadow: 0 0 0 10px rgba(16, 163, 127, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0); } }
   .iconBtn svg { width: 19px; height: 19px; pointer-events: none; }
-  #imagePreview {
-    display: none; padding: 10px 12px; background: var(--sidebar);
-    border-top: 1px solid var(--border); align-items: center; gap: 10px;
-  }
-  #imagePreview img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
-  #imagePreview span { color: var(--text-secondary); font-size: 13px; flex: 1; }
-  #imagePreview button {
-    background: none; border: none; color: var(--text-secondary); font-size: 20px;
-    cursor: pointer; touch-action: manipulation;
-  }
+
+  /* Modal Setup */
   #setup {
-    padding: 24px; text-align: center; max-width: 340px; margin: auto;
-    display: none; flex-direction: column;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(13, 17, 23, 0.95); z-index: 100;
+    display: none; flex-direction: column; justify-content: center; align-items: center; padding: 24px;
   }
-  #setup p { color: var(--text-secondary); margin-bottom: 8px; font-size: 15px; }
-  #setup input {
-    width: 100%; padding: 13px; margin-bottom: 12px; border-radius: 10px;
-    border: 1px solid var(--border); background: var(--sidebar); color: var(--text-primary);
-    font-size: 15px; outline: none;
+  .setup-card { background: var(--sidebar); border: 1px solid var(--border); padding: 24px; border-radius: 16px; width: 100%; max-width: 360px; }
+  .setup-card p { color: var(--text-secondary); margin-bottom: 8px; font-size: 14px; }
+  .setup-card input {
+    width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text-primary); font-size: 14px; outline: none;
   }
-  #setup button {
-    width: 100%; border-radius: 10px; padding: 13px; border: none;
-    background: var(--accent); color: white; font-size: 15px; font-weight: 600;
-    touch-action: manipulation; margin-bottom: 12px;
+  .setup-card button {
+    width: 100%; border-radius: 8px; padding: 12px; border: none;
+    background: var(--accent); color: white; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px;
   }
-  #setup .closeBtn { background: var(--bubble-bot); border: 1px solid var(--border); }
-  #setup label { display: block; margin-top: 16px; margin-bottom: 4px; color: var(--text-secondary); font-size: 13px; text-align: left; }
+  .setup-card .closeBtn { background: var(--bubble-bot); border: 1px solid var(--border); }
 </style>
 </head>
 <body>
 
 <div id="header">
-  <span class="dot"></span>Cyrus
+  <span class="dot"></span>Cyrus Workstation
   <button id="settingsBtn" onclick="openSettings()" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   </button>
 </div>
 
 <div id="setup">
-  <label>Groq API key (free)</label>
-  <input type="text" id="apiKeyInput" placeholder="gsk_...">
-  <label>Serper API key (free, for web search)</label>
-  <input type="text" id="serperKeyInput" placeholder="your serper key">
-  <button onclick="saveKey()">Save</button>
-  <button class="closeBtn" onclick="closeSettings()">Cancel</button>
+  <div class="setup-card">
+    <h3 style="margin-bottom: 12px;">Settings</h3>
+    <p>Groq API key (free)</p>
+    <input type="text" id="apiKeyInput" placeholder="gsk_...">
+    <p>Serper API key (free, for deep search)</p>
+    <input type="text" id="serperKeyInput" placeholder="your serper key">
+    <button onclick="saveKey()">Save Keys</button>
+    <button class="closeBtn" onclick="closeSettings()">Cancel</button>
+  </div>
 </div>
 
 <div id="chat"></div>
 
-<div id="imagePreview">
-  <img id="previewImg" src="">
-  <span>Image ready to send</span>
-  <button onclick="clearImage()">×</button>
-</div>
+<div id="attachmentsPreview"></div>
 
 <div id="inputRow">
-  <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleImageSelect(event)">
-  <button class="iconBtn camera" onclick="document.getElementById('fileInput').click()" title="Send image">
+  <!-- Image Upload Button -->
+  <input type="file" id="imageInput" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(event)">
+  <button class="iconBtn secondary" onclick="document.getElementById('imageInput').click()" title="Upload Images (Up to 6)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
   </button>
-  <button class="iconBtn mic" id="micBtn" onclick="startVoice()" title="Voice input">
+
+  <!-- PDF / Document Upload Button -->
+  <input type="file" id="pdfInput" accept="application/pdf,.txt" style="display:none;" onchange="handleDocumentSelect(event)">
+  <button class="iconBtn secondary" onclick="document.getElementById('pdfInput').click()" title="Upload Document / PDF">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+  </button>
+
+  <!-- Mic Button -->
+  <button class="iconBtn secondary" id="micBtn" onclick="startVoice()" title="Voice input">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
   </button>
-  <input type="text" id="textInput" placeholder="Message Cyrus...">
+
+  <input type="text" id="textInput" placeholder="Ask Cyrus, analyze files, or deep search...">
+  
   <button class="iconBtn" onclick="sendText()" title="Send">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
   </button>
 </div>
 
 <script>
-let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || {
-  name: null, goals: [], projects: [], notes: [], tasks: [], history: []
-};
-let pendingImage = null;
-let lastBotReply = null;
+let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || { name: null, history: [] };
+let pendingImages = []; // Stores base64 images
+let pendingDocText = ""; // Stores extracted PDF text
+let pendingDocName = "";
 
 function saveMem() { localStorage.setItem('cyrus_mem', JSON.stringify(mem)); }
 function getKey() { return localStorage.getItem('cyrus_key'); }
@@ -178,101 +226,200 @@ function saveKey() {
 }
 
 window.onload = function() {
-  if (!getKey()) document.getElementById('setup').style.display = 'flex';
+  if (!getKey()) openSettings();
   mem.history.forEach(m => {
-    if (typeof m.content === 'string') {
-      appendMsg(m.role === 'user' ? 'user' : 'bot', m.content);
-      if (m.role === 'assistant') lastBotReply = m.content;
-    }
+    if (typeof m.content === 'string') appendMsg(m.role === 'user' ? 'user' : 'bot', m.content);
   });
 };
 
+/* Attachments Handler */
+function handleImageSelect(e) {
+  const files = Array.from(e.target.files).slice(0, 6);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      pendingImages.push(evt.target.result);
+      renderPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleDocumentSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingDocName = file.name;
+
+  if (file.type === "application/pdf") {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = "";
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(" ") + "\n";
+    }
+    pendingDocText = text;
+  } else {
+    pendingDocText = await file.text();
+  }
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const panel = document.getElementById('attachmentsPreview');
+  panel.innerHTML = "";
+  if (pendingImages.length === 0 && !pendingDocText) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "flex";
+  
+  pendingImages.forEach((img, idx) => {
+    const card = document.createElement('div');
+    card.className = "preview-card";
+    card.innerHTML = `<img src="${img}"> Image ${idx+1} <span class="remove" onclick="removeImage(${idx})">×</span>`;
+    panel.appendChild(card);
+  });
+
+  if (pendingDocText) {
+    const card = document.createElement('div');
+    card.className = "preview-card";
+    card.innerHTML = `📄 ${pendingDocName} (${Math.round(pendingDocText.length/1000)}k chars) <span class="remove" onclick="removeDoc()">×</span>`;
+    panel.appendChild(card);
+  }
+}
+
+function removeImage(idx) { pendingImages.splice(idx, 1); renderPreviews(); }
+function removeDoc() { pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
+function clearAttachments() { pendingImages = []; pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
+
+/* UI Messaging & Rendering */
 function appendMsg(who, text, extraClass) {
   const div = document.createElement('div');
   div.className = 'msg ' + who + (extraClass ? ' ' + extraClass : '');
-  div.textContent = text;
+  if (who === 'bot') {
+    div.innerHTML = marked.parse(text);
+    div.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+  } else {
+    div.textContent = text;
+  }
   document.getElementById('chat').appendChild(div);
   document.getElementById('chat').scrollTop = 999999;
-  if (who === 'bot' && !extraClass) lastBotReply = text;
   return div;
 }
 
-function appendMsgWithLinks(who, text, links) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + who;
-  div.textContent = text;
-  if (links && links.length) {
-    const linkDiv = document.createElement('div');
-    linkDiv.className = 'linkList';
-    links.forEach(l => {
-      const a = document.createElement('a');
-      a.href = l.link; a.textContent = l.title; a.target = '_blank';
-      linkDiv.appendChild(a);
-    });
-    div.appendChild(linkDiv);
-  }
-  document.getElementById('chat').appendChild(div);
+function renderFollowups(suggestions) {
+  if (!suggestions || !suggestions.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'followups';
+  suggestions.forEach(s => {
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.textContent = s;
+    chip.onclick = () => { wrap.remove(); process(s); };
+    wrap.appendChild(chip);
+  });
+  document.getElementById('chat').appendChild(wrap);
   document.getElementById('chat').scrollTop = 999999;
-  if (who === 'bot') lastBotReply = text;
 }
 
-function speak(text) {
-  const u = new SpeechSynthesisUtterance(text);
-  speechSynthesis.speak(u);
+/* Deep Research Engine */
+async function searchWeb(query) {
+  const key = getSerperKey();
+  if (!key) return null;
+  const res = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: query })
+  });
+  return await res.json();
 }
 
-function handleBuiltin(text) {
-  const t = text.toLowerCase().trim();
-  if (t.startsWith('remember my name is')) {
-    mem.name = text.slice(20).trim(); saveMem();
-    return 'Got it, ' + mem.name + '.';
+async function runDeepResearch(userQuery) {
+  const statusMsg = appendMsg('bot', 'Initiating Deep Research workflow...', 'searching');
+  let searchResults = [];
+  let links = [];
+
+  // Step 1: Execute primary search
+  statusMsg.textContent = `Deep Research Step 1/3: Searching web for "${userQuery}"...`;
+  const primary = await searchWeb(userQuery);
+  if (primary && primary.organic) {
+    primary.organic.slice(0, 3).forEach(r => {
+      searchResults.push(`${r.title}: ${r.snippet}`);
+      links.push({ title: r.title, link: r.link });
+    });
   }
-  if (t.startsWith('add goal ')) { mem.goals.push(text.slice(9)); saveMem(); return 'Goal added.'; }
-  if (t.startsWith('add project ')) { mem.projects.push(text.slice(12)); saveMem(); return 'Project added.'; }
-  if (t.startsWith('add note ')) { mem.notes.push(text.slice(9)); saveMem(); return 'Note saved.'; }
-  if (t.startsWith('add task ')) { mem.tasks.push(text.slice(9)); saveMem(); return 'Task added.'; }
-  if (t === 'show memory') { return JSON.stringify(mem, null, 2); }
-  if (t === 'save this') {
-    if (!lastBotReply) return "There's nothing recent to save yet.";
-    mem.notes.push(lastBotReply);
-    saveMem();
-    return 'Saved that as a note.';
+
+  // Step 2: Execute targeted follow-up search
+  statusMsg.textContent = `Deep Research Step 2/3: Cross-referencing & refining analysis...`;
+  const secondary = await searchWeb(`${userQuery} details context data`);
+  if (secondary && secondary.organic) {
+    secondary.organic.slice(0, 2).forEach(r => {
+      searchResults.push(`${r.title}: ${r.snippet}`);
+      links.push({ title: r.title, link: r.link });
+    });
   }
-  return null;
+
+  statusMsg.textContent = `Deep Research Step 3/3: Synthesizing full research report...`;
+  statusMsg.remove();
+  
+  return { context: searchResults.join("\n\n"), links: links };
 }
 
-function handleImageSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    pendingImage = e.target.result;
-    document.getElementById('previewImg').src = pendingImage;
-    document.getElementById('imagePreview').style.display = 'flex';
-  };
-  reader.readAsDataURL(file);
+/* Streaming Completion API Call */
+async function streamCyrusResponse(messages, botDiv) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai/gpt-oss-120b",
+      messages: messages,
+      stream: true,
+      max_tokens: 1200
+    })
+  });
+
+  if (!res.ok) throw new Error("API stream connection error.");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let fullText = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        try {
+          const parsed = JSON.parse(line.substring(6));
+          const content = parsed.choices[0]?.delta?.content || "";
+          fullText += content;
+          botDiv.innerHTML = marked.parse(fullText);
+          document.getElementById('chat').scrollTop = 999999;
+        } catch (e) {}
+      }
+    }
+  }
+
+  botDiv.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+  return fullText;
 }
 
-function clearImage() {
-  pendingImage = null;
-  document.getElementById('imagePreview').style.display = 'none';
-  document.getElementById('fileInput').value = '';
-}
+/* Vision API Call (Multi-Image) */
+async function analyzeMultipleImages(images, question) {
+  const content = [{ type: "text", text: question || "Analyze and compare these uploaded images in detail." }];
+  images.forEach(img => content.push({ type: "image_url", image_url: { url: img } }));
 
-async function analyzeImage(imageDataUrl, question) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "qwen/qwen3.6-27b",
-      messages: [{
-        role: "user",
-        content: [
-          { type: "text", text: question || "Describe what you see in this image in detail." },
-          { type: "image_url", image_url: { url: imageDataUrl } }
-        ]
-      }],
-      max_tokens: 700
+      messages: [{ role: "user", content: content }],
+      max_tokens: 1000
     })
   });
   const data = await res.json();
@@ -280,178 +427,95 @@ async function analyzeImage(imageDataUrl, question) {
   return data.choices[0].message.content;
 }
 
-async function searchWeb(query) {
-  const serperKey = getSerperKey();
-  if (!serperKey) return null;
-  const res = await fetch("https://google.serper.dev/search", {
-    method: "POST",
-    headers: { "X-API-KEY": serperKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ q: query })
-  });
-  return await res.json();
-}
-
-async function askCyrus(text, searchContext) {
-  let systemPrompt = 'You are Cyrus, a personal AI assistant built specifically for Samuel. ' +
-    'You were created by Samuel using free AI tools. You are NOT ChatGPT, NOT OpenAI\'s assistant, and NOT ' +
-    'affiliated with OpenAI, Google, or any other company as a product. If asked who made you, who developed you, ' +
-    'or what you are, always say: "I\'m Cyrus, a personal assistant Samuel built for himself." Never mention ' +
-    'the underlying model name, OpenAI, or any AI company by name, even if directly asked what model you run on. ' +
-    '\nName: ' + mem.name +
-    '\nGoals: ' + JSON.stringify(mem.goals) +
-    '\nProjects: ' + JSON.stringify(mem.projects) +
-    '\nNotes: ' + JSON.stringify(mem.notes) +
-    '\nTasks: ' + JSON.stringify(mem.tasks) +
-    '\nBe concise and direct. You DO have access to live internet search — when the user asks about current ' +
-    'events, news, prices, scores, or anything time-sensitive, a web search happens automatically before you answer, ' +
-    'and results are provided to you below when relevant. Never say you lack internet access or that you cannot ' +
-    'get real-time information — you can, through this search capability. If no search results are included below ' +
-    'and the question needs current info, simply note the search didn\'t return results this time, not that you\'re incapable of searching. ' +
-    'If asked what you can do, describe yourself as able to: chat and remember context, search the live web for current ' +
-    'information, analyze images, remember notes/goals/projects/tasks, and hold natural conversation. Never describe ' +
-    'yourself using generic AI assistant boilerplate, and never mention training cutoffs as a limitation since your ' +
-    'search capability compensates for that.';
-
-  if (searchContext) {
-    systemPrompt += '\n\nYou just searched the web and found this current information:\n' + searchContext +
-      '\n\nCRITICAL: Only state facts, teams, times, or details that are explicitly present in the search results above. ' +
-      'Do NOT invent, guess, or fill in any match, name, date, or detail not literally present in the text above. ' +
-      'If the search results are incomplete, vague, or do not clearly answer the question, say so directly instead of ' +
-      'making up plausible-sounding details. It is much better to say "the search didn\'t return clear results for this" ' +
-      'than to guess. Mention this is from a live web search.';
-  }
-
-  const messages = [{role:"system", content: systemPrompt}]
-    .concat(mem.history.filter(m => typeof m.content === 'string').slice(-10))
-    .concat([{role:"user", content: text}]);
-
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "openai/gpt-oss-120b", messages: messages, max_tokens: 900 })
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  const reply = data.choices[0].message.content;
-  mem.history.push({role:"user", content:text});
-  mem.history.push({role:"assistant", content:reply});
-  saveMem();
-  return reply;
-}
-
-async function runSearch(query) {
-  if (!getSerperKey()) return { text: null, links: null, error: "No Serper key set." };
-  try {
-    const results = await searchWeb(query);
-    let parts = [];
-    let links = null;
-    if (results) {
-      if (results.answerBox) parts.push('Direct answer: ' + (results.answerBox.answer || results.answerBox.snippet || ''));
-      if (results.organic) {
-        parts.push(results.organic.slice(0, 5).map(r => r.title + ': ' + r.snippet).join('\n\n'));
-        links = results.organic.slice(0, 5).map(r => ({title: r.title, link: r.link}));
-      }
-    }
-    return { text: parts.join('\n\n'), links: links, error: null };
-  } catch (e) {
-    return { text: null, links: null, error: e.message };
-  }
-}
-
-async function runMorningCheck() {
-  const loadingMsg = appendMsg('bot', 'Pulling today\'s football fixtures...', 'searching');
-  const result = await runSearch("football fixtures today");
-  loadingMsg.remove();
-  if (result.error) {
-    appendMsg('bot', 'Could not fetch fixtures: ' + result.error);
-    return;
-  }
-  mem.notes.push('Morning check run - ' + new Date().toDateString());
-  saveMem();
-  const reply = await askCyrus("Give me a short, friendly morning summary of today's football fixtures based strictly on this search data only, then remind me of my current tasks.", result.text);
-  appendMsgWithLinks('bot', reply, result.links);
-  speak(reply);
-}
-
-async function runDailyBrief() {
-  const loadingMsg = appendMsg('bot', 'Putting your daily brief together...', 'searching');
-  const result = await runSearch("top news today");
-  loadingMsg.remove();
-  const dateStr = new Date().toDateString();
-  const taskList = mem.tasks.length ? mem.tasks.join(', ') : 'no tasks saved right now';
-  const prompt = "Give me a short daily brief. Today is " + dateStr + ". My current tasks are: " + taskList +
-    ". Include a quick summary of today's top news based strictly on the search data provided, then list my tasks clearly.";
-  const reply = await askCyrus(prompt, result.text);
-  appendMsgWithLinks('bot', reply, result.links);
-  speak(reply);
-}
-
+/* Main Request Processor */
 async function process(text) {
-  if (!text.trim() && !pendingImage) return;
+  if (!text.trim() && pendingImages.length === 0 && !pendingDocText) return;
 
-  if (pendingImage) {
-    const imgDiv = document.createElement('div');
-    imgDiv.className = 'msg user';
-    if (text.trim()) imgDiv.appendChild(document.createTextNode(text));
-    const imgEl = document.createElement('img');
-    imgEl.src = pendingImage;
-    imgDiv.appendChild(imgEl);
-    document.getElementById('chat').appendChild(imgDiv);
-    document.getElementById('chat').scrollTop = 999999;
+  const currentText = text;
+  const currentImages = [...pendingImages];
+  const currentDoc = pendingDocText;
+  clearAttachments();
 
-    const loadingMsg = appendMsg('bot', 'Looking at the image...', 'searching');
+  // Render User Message with images if attached
+  const userDiv = document.createElement('div');
+  userDiv.className = 'msg user';
+  if (currentText) userDiv.appendChild(document.createTextNode(currentText));
+  if (currentImages.length) {
+    const grid = document.createElement('div');
+    grid.className = 'img-grid';
+    currentImages.forEach(img => {
+      const el = document.createElement('img'); el.src = img; grid.appendChild(el);
+    });
+    userDiv.appendChild(grid);
+  }
+  document.getElementById('chat').appendChild(userDiv);
+  document.getElementById('chat').scrollTop = 999999;
+
+  // 1. Multi-Image Analysis Flow
+  if (currentImages.length > 0) {
+    const statusMsg = appendMsg('bot', `Analyzing ${currentImages.length} image(s)...`, 'searching');
     try {
-      const reply = await analyzeImage(pendingImage, text);
-      loadingMsg.remove();
+      const reply = await analyzeMultipleImages(currentImages, currentText);
+      statusMsg.remove();
       appendMsg('bot', reply);
-      speak(reply);
+      mem.history.push({ role: "user", content: currentText || "Image comparison" });
+      mem.history.push({ role: "assistant", content: reply });
+      saveMem();
     } catch (e) {
-      loadingMsg.remove();
-      appendMsg('bot', 'Image analysis failed: ' + e.message);
+      statusMsg.remove();
+      appendMsg('bot', "Vision processing failed: " + e.message);
     }
-    clearImage();
-    return;
+   return;
   }
 
-  appendMsg('user', text);
-
-  const t = text.toLowerCase().trim();
-
-  if (t === 'morning check') { await runMorningCheck(); return; }
-  if (t === 'daily brief') { await runDailyBrief(); return; }
-
-  const builtin = handleBuiltin(text);
-  if (builtin) { appendMsg('bot', builtin); speak(builtin); return; }
-
-  let searchContext = null;
-  let links = null;
-
-  const needsSearch = t.startsWith('search ') || t.startsWith('search:') ||
-    /\b(today|latest|current|currently|now|this week|this year|recent|202[4-9]|who is the|what is the current)\b/.test(t);
-
-  if (needsSearch) {
-    if (!getSerperKey()) {
-      appendMsg('bot', "I don't have web search set up. Tap the gear icon and add your Serper API key.");
-      return;
-    }
-    const query = text.replace(/^search:?\s*/i, '');
-    const loadingMsg = appendMsg('bot', 'Searching the web...', 'searching');
-    const result = await runSearch(query);
-    loadingMsg.remove();
-    if (result.error) {
-      appendMsg('bot', 'Search failed: ' + result.error);
-      return;
-    }
-    searchContext = result.text;
-    links = result.links;
+  // 2. Text Stream & Deep Research Flow
+  let systemPrompt = "You are Cyrus, a personal AI assistant. Be direct, clear, and well-structured in markdown format.";
+  
+  if (currentDoc) {
+    systemPrompt += `\n\nUser uploaded a document. Extract insights from this text content:\n${currentDoc.slice(0, 12000)}`;
   }
 
+  const isDeepResearch = currentText.toLowerCase().includes("research") || currentText.toLowerCase().includes("deep search") || currentText.toLowerCase().includes("compare");
+  let searchLinks = [];
+
+  if (isDeepResearch && getSerperKey()) {
+    const research = await runDeepResearch(currentText);
+    systemPrompt += `\n\nDeep Research Findings:\n${research.context}\nSynthesize these into a structured research answer.`;
+    searchLinks = research.links;
+  }
+
+  const messages = [{ role: "system", content: systemPrompt }]
+    .concat(mem.history.slice(-8))
+    .concat([{ role: "user", content: currentText }]);
+
+  const botDiv = appendMsg('bot', '');
   try {
-    const reply = await askCyrus(text, searchContext);
-    appendMsgWithLinks('bot', reply, links);
-    speak(reply);
+    const finalReply = await streamCyrusResponse(messages, botDiv);
+    
+    // Add citations if available
+    if (searchLinks.length) {
+      const linkDiv = document.createElement('div');
+      linkDiv.className = 'linkList';
+      searchLinks.forEach(l => {
+        const a = document.createElement('a'); a.href = l.link; a.textContent = "🔗 " + l.title; a.target = '_blank';
+        linkDiv.appendChild(a);
+      });
+      botDiv.appendChild(linkDiv);
+    }
+
+    mem.history.push({ role: "user", content: currentText });
+    mem.history.push({ role: "assistant", content: finalReply });
+    saveMem();
+
+    // Generate Follow-up chips
+    renderFollowups([
+      "Can you expand further on this?",
+      "Summarize this in key bullet points",
+      "What are the practical next steps?"
+    ]);
+
   } catch (e) {
-    appendMsg('bot', 'Something went wrong: ' + e.message);
+    botDiv.textContent = "Error streaming response: " + e.message;
   }
 }
 
@@ -468,7 +532,7 @@ document.getElementById('textInput').addEventListener('keypress', function(e) {
 
 function startVoice() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { alert('Voice not supported on this browser'); return; }
+  if (!Recognition) { alert('Voice input is not supported in this browser.'); return; }
   const micBtn = document.getElementById('micBtn');
   const rec = new Recognition();
   rec.lang = 'en-US';
