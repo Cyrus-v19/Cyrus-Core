@@ -486,7 +486,7 @@ async function process(text) {
     return;
       }
 
-let systemPrompt = "You are Cyrus, a personal assistant built by Samuel. Be concise, direct, and factual.";
+let systemPrompt = "You are Cyrus, an AI assistant built by Samuel. You have access to real-time web search. When Search Results are provided in the prompt, USE THEM directly to answer the user's question concisely and accurately. Never claim you cannot browse the web or lack real-time access when search results are provided.";
 
 if (mem.name) {
   systemPrompt += `\n\nThe user's name is ${mem.name}.`;
@@ -515,7 +515,7 @@ let searchLinks = [];
 
 if (isDeepResearch && getSerperKey()) {
   const research = await runDeepResearch(currentText);
-  systemPrompt += `\n\nSearch Results:\n${research.context}`;
+  systemPrompt += `\n\n=== REAL-TIME WEB SEARCH RESULTS ===\n${research.context}\n=== END SEARCH RESULTS ===\n`;
   searchLinks = research.links;
 }
 
