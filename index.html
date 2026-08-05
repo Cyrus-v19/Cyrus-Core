@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Cyrus AI</title>
+<title>Cyrus</title>
 
-<!-- Markdown & Syntax Highlighting Libraries -->
+<!-- Markdown & Syntax Highlighting -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
 <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
@@ -34,20 +34,23 @@
     overflow: hidden; position: fixed; width: 100%; top: 0; left: 0;
   }
   #header {
-    padding: 16px; background: var(--sidebar); text-align: center;
-    font-weight: 600; font-size: 17px; letter-spacing: 0.3px;
+    padding: 12px 16px; background: var(--sidebar); text-align: center;
+    font-weight: 600; font-size: 16px; letter-spacing: 0.3px;
     border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center; gap: 8px;
     flex-shrink: 0; position: relative;
   }
   #header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  
+  /* Compact Settings Icon */
   #settingsBtn {
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-    width: 36px; height: 36px; background: transparent; color: var(--text-secondary);
+    width: 28px; height: 28px; background: transparent; color: var(--text-secondary);
     border: none; display: flex; align-items: center; justify-content: center;
     cursor: pointer; touch-action: manipulation; transition: transform 0.2s ease;
   }
-  #settingsBtn:hover { transform: translateY(-50%) rotate(30deg); color: var(--text-primary); }
+  #settingsBtn svg { width: 20px; height: 20px; pointer-events: none; }
+  #settingsBtn:hover { color: var(--text-primary); }
   
   #chat {
     flex: 1; overflow-y: auto; padding: 16px 12px;
@@ -57,95 +60,80 @@
   .msg {
     padding: 12px 16px; border-radius: 16px;
     max-width: 85%; line-height: 1.5; font-size: 15px;
-    word-wrap: break-word; animation: fadeIn 0.25s ease-in-out;
+    word-wrap: break-word; animation: fadeIn 0.2s ease-in-out;
   }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
   
   .user { background: var(--bubble-user); color: white; margin-left: auto; border-bottom-right-radius: 4px; }
   .bot { background: var(--bubble-bot); color: var(--text-primary); margin-right: auto; border-bottom-left-radius: 4px; }
   
-  /* Markdown styling inside bot messages */
   .bot p { margin-bottom: 8px; }
   .bot p:last-child { margin-bottom: 0; }
   .bot ul, .bot ol { margin: 8px 0 8px 20px; }
-  .bot h1, .bot h2, .bot h3 { margin: 12px 0 6px 0; font-size: 1.1em; }
-  .bot code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 14px; }
+  .bot code { background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 13px; }
   .bot pre { background: #000; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
   .bot pre code { background: none; padding: 0; }
 
-  .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 14px; background: transparent; border: 1px dashed var(--border); }
+  .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 13px; background: transparent; border: 1px dashed var(--border); }
   
-  /* Image Gallery inside user messages */
-  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 6px; margin-top: 8px; }
-  .img-grid img { width: 100%; height: 80px; object-fit: cover; border-radius: 8px; }
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 8px; }
+  .img-grid img { width: 100%; height: 70px; object-fit: cover; border-radius: 6px; }
 
-  /* Links & Source citations */
   .linkList { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
   .linkList a { display: block; color: var(--accent); font-size: 13px; margin-top: 4px; text-decoration: none; word-break: break-all; }
 
-  /* Dynamic Follow-up Chips */
-  .followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .chip {
     background: rgba(16, 163, 127, 0.15); border: 1px solid var(--accent); color: var(--accent);
-    padding: 6px 12px; border-radius: 16px; font-size: 13px; cursor: pointer;
-    transition: all 0.2s ease;
+    padding: 5px 10px; border-radius: 14px; font-size: 12px; cursor: pointer;
   }
-  .chip:hover { background: var(--accent); color: white; transform: translateY(-1px); }
 
-  /* Attachments Preview Panel */
   #attachmentsPreview {
-    display: none; padding: 10px 12px; background: var(--sidebar);
-    border-top: 1px solid var(--border); flex-wrap: wrap; gap: 8px; align-items: center;
+    display: none; padding: 8px 12px; background: var(--sidebar);
+    border-top: 1px solid var(--border); flex-wrap: wrap; gap: 6px; align-items: center;
   }
   .preview-card {
-    position: relative; display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 6px;
     background: var(--bg); border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; font-size: 12px;
   }
-  .preview-card img { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; }
+  .preview-card img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
   .preview-card .remove { cursor: pointer; color: var(--text-secondary); font-weight: bold; margin-left: 4px; }
-  .preview-card .remove:hover { color: #EF4444; }
 
-  /* Input Bar */
+  /* Fully Mobile Responsive Input Bar */
   #inputRow {
-    display: flex; align-items: center; padding: 12px; gap: 8px;
+    display: flex; align-items: center; padding: 8px 10px; gap: 6px;
     background: var(--sidebar); border-top: 1px solid var(--border);
-    flex-shrink: 0;
+    flex-shrink: 0; width: 100%;
   }
   #textInput {
-    flex: 1; padding: 12px 16px; border-radius: 24px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--text-primary); font-size: 15px; outline: none;
-    transition: border-color 0.2s;
+    flex: 1; padding: 10px 14px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text-primary); font-size: 14px; outline: none;
+    min-width: 0; /* Prevents overflow pushing buttons off screen */
   }
-  #textInput:focus { border-color: var(--accent); }
   .iconBtn {
-    border: none; border-radius: 50%; width: 42px; height: 42px;
+    border: none; border-radius: 50%; width: 38px; height: 38px;
     background: var(--bubble-user); color: white;
     display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; cursor: pointer; transition: all 0.2s ease;
-    touch-action: manipulation;
+    flex-shrink: 0; cursor: pointer; touch-action: manipulation;
   }
-  .iconBtn:hover { transform: scale(1.05); }
-  .iconBtn:active { transform: scale(0.95); opacity: 0.8; }
   .iconBtn.secondary { background: var(--bubble-bot); border: 1px solid var(--border); }
-  .iconBtn.listening { background: var(--accent); animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.6); } 70% { box-shadow: 0 0 0 10px rgba(16, 163, 127, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 163, 127, 0); } }
-  .iconBtn svg { width: 19px; height: 19px; pointer-events: none; }
+  .iconBtn.listening { background: var(--accent); }
+  .iconBtn svg { width: 18px; height: 18px; pointer-events: none; }
 
-  /* Modal Setup */
   #setup {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(13, 17, 23, 0.95); z-index: 100;
-    display: none; flex-direction: column; justify-content: center; align-items: center; padding: 24px;
+    display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px;
   }
-  .setup-card { background: var(--sidebar); border: 1px solid var(--border); padding: 24px; border-radius: 16px; width: 100%; max-width: 360px; }
-  .setup-card p { color: var(--text-secondary); margin-bottom: 8px; font-size: 14px; }
+  .setup-card { background: var(--sidebar); border: 1px solid var(--border); padding: 20px; border-radius: 14px; width: 100%; max-width: 320px; }
+  .setup-card p { color: var(--text-secondary); margin-bottom: 6px; font-size: 13px; }
   .setup-card input {
-    width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 8px;
-    border: 1px solid var(--border); background: var(--bg); color: var(--text-primary); font-size: 14px; outline: none;
+    width: 100%; padding: 10px; margin-bottom: 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text-primary); font-size: 13px; outline: none;
   }
   .setup-card button {
-    width: 100%; border-radius: 8px; padding: 12px; border: none;
-    background: var(--accent); color: white; font-size: 15px; font-weight: 600; cursor: pointer; margin-bottom: 8px;
+    width: 100%; border-radius: 8px; padding: 10px; border: none;
+    background: var(--accent); color: white; font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 6px;
   }
   .setup-card .closeBtn { background: var(--bubble-bot); border: 1px solid var(--border); }
 </style>
@@ -153,7 +141,7 @@
 <body>
 
 <div id="header">
-  <span class="dot"></span>Cyrus Workstation
+  <span class="dot"></span>Cyrus
   <button id="settingsBtn" onclick="openSettings()" title="Settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
   </button>
@@ -161,7 +149,7 @@
 
 <div id="setup">
   <div class="setup-card">
-    <h3 style="margin-bottom: 12px;">Settings</h3>
+    <h3 style="margin-bottom: 10px;">Settings</h3>
     <p>Groq API key (free)</p>
     <input type="text" id="apiKeyInput" placeholder="gsk_...">
     <p>Serper API key (free, for deep search)</p>
@@ -176,24 +164,21 @@
 <div id="attachmentsPreview"></div>
 
 <div id="inputRow">
-  <!-- Image Upload Button -->
   <input type="file" id="imageInput" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(event)">
-  <button class="iconBtn secondary" onclick="document.getElementById('imageInput').click()" title="Upload Images (Up to 6)">
+  <button class="iconBtn secondary" onclick="document.getElementById('imageInput').click()" title="Upload Images">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
   </button>
 
-  <!-- PDF / Document Upload Button -->
   <input type="file" id="pdfInput" accept="application/pdf,.txt" style="display:none;" onchange="handleDocumentSelect(event)">
-  <button class="iconBtn secondary" onclick="document.getElementById('pdfInput').click()" title="Upload Document / PDF">
+  <button class="iconBtn secondary" onclick="document.getElementById('pdfInput').click()" title="Upload PDF/Text">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
   </button>
 
-  <!-- Mic Button -->
   <button class="iconBtn secondary" id="micBtn" onclick="startVoice()" title="Voice input">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
   </button>
 
-  <input type="text" id="textInput" placeholder="Ask Cyrus, analyze files, or deep search...">
+  <input type="text" id="textInput" placeholder="Message Cyrus...">
   
   <button class="iconBtn" onclick="sendText()" title="Send">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
@@ -202,8 +187,8 @@
 
 <script>
 let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || { name: null, history: [] };
-let pendingImages = []; // Stores base64 images
-let pendingDocText = ""; // Stores extracted PDF text
+let pendingImages = [];
+let pendingDocText = "";
 let pendingDocName = "";
 
 function saveMem() { localStorage.setItem('cyrus_mem', JSON.stringify(mem)); }
@@ -232,7 +217,6 @@ window.onload = function() {
   });
 };
 
-/* Attachments Handler */
 function handleImageSelect(e) {
   const files = Array.from(e.target.files).slice(0, 6);
   files.forEach(file => {
@@ -250,18 +234,22 @@ async function handleDocumentSelect(e) {
   if (!file) return;
   pendingDocName = file.name;
 
-  if (file.type === "application/pdf") {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let text = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      text += content.items.map(item => item.str).join(" ") + "\n";
+  try {
+    if (file.type === "application/pdf") {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => item.str).join(" ") + "\n";
+      }
+      pendingDocText = text;
+    } else {
+      pendingDocText = await file.text();
     }
-    pendingDocText = text;
-  } else {
-    pendingDocText = await file.text();
+  } catch(err) {
+    alert("Could not extract file text: " + err.message);
   }
   renderPreviews();
 }
@@ -285,7 +273,7 @@ function renderPreviews() {
   if (pendingDocText) {
     const card = document.createElement('div');
     card.className = "preview-card";
-    card.innerHTML = `📄 ${pendingDocName} (${Math.round(pendingDocText.length/1000)}k chars) <span class="remove" onclick="removeDoc()">×</span>`;
+    card.innerHTML = `📄 ${pendingDocName} <span class="remove" onclick="removeDoc()">×</span>`;
     panel.appendChild(card);
   }
 }
@@ -294,12 +282,11 @@ function removeImage(idx) { pendingImages.splice(idx, 1); renderPreviews(); }
 function removeDoc() { pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
 function clearAttachments() { pendingImages = []; pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
 
-/* UI Messaging & Rendering */
 function appendMsg(who, text, extraClass) {
   const div = document.createElement('div');
   div.className = 'msg ' + who + (extraClass ? ' ' + extraClass : '');
   if (who === 'bot') {
-    div.innerHTML = marked.parse(text);
+    div.innerHTML = marked.parse(text || '');
     div.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
   } else {
     div.textContent = text;
@@ -324,7 +311,6 @@ function renderFollowups(suggestions) {
   document.getElementById('chat').scrollTop = 999999;
 }
 
-/* Deep Research Engine */
 async function searchWeb(query) {
   const key = getSerperKey();
   if (!key) return null;
@@ -337,12 +323,10 @@ async function searchWeb(query) {
 }
 
 async function runDeepResearch(userQuery) {
-  const statusMsg = appendMsg('bot', 'Initiating Deep Research workflow...', 'searching');
+  const statusMsg = appendMsg('bot', 'Running Deep Research...', 'searching');
   let searchResults = [];
   let links = [];
 
-  // Step 1: Execute primary search
-  statusMsg.textContent = `Deep Research Step 1/3: Searching web for "${userQuery}"...`;
   const primary = await searchWeb(userQuery);
   if (primary && primary.organic) {
     primary.organic.slice(0, 3).forEach(r => {
@@ -351,23 +335,10 @@ async function runDeepResearch(userQuery) {
     });
   }
 
-  // Step 2: Execute targeted follow-up search
-  statusMsg.textContent = `Deep Research Step 2/3: Cross-referencing & refining analysis...`;
-  const secondary = await searchWeb(`${userQuery} details context data`);
-  if (secondary && secondary.organic) {
-    secondary.organic.slice(0, 2).forEach(r => {
-      searchResults.push(`${r.title}: ${r.snippet}`);
-      links.push({ title: r.title, link: r.link });
-    });
-  }
-
-  statusMsg.textContent = `Deep Research Step 3/3: Synthesizing full research report...`;
   statusMsg.remove();
-  
   return { context: searchResults.join("\n\n"), links: links };
 }
 
-/* Streaming Completion API Call */
 async function streamCyrusResponse(messages, botDiv) {
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -376,11 +347,11 @@ async function streamCyrusResponse(messages, botDiv) {
       model: "openai/gpt-oss-120b",
       messages: messages,
       stream: true,
-      max_tokens: 1200
+      max_tokens: 1000
     })
   });
 
-  if (!res.ok) throw new Error("API stream connection error.");
+  if (!res.ok) throw new Error("Groq API error. Check API key.");
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder("utf-8");
@@ -408,9 +379,8 @@ async function streamCyrusResponse(messages, botDiv) {
   return fullText;
 }
 
-/* Vision API Call (Multi-Image) */
 async function analyzeMultipleImages(images, question) {
-  const content = [{ type: "text", text: question || "Analyze and compare these uploaded images in detail." }];
+  const content = [{ type: "text", text: question || "Analyze these images." }];
   images.forEach(img => content.push({ type: "image_url", image_url: { url: img } }));
 
   const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -419,7 +389,7 @@ async function analyzeMultipleImages(images, question) {
     body: JSON.stringify({
       model: "qwen/qwen3.6-27b",
       messages: [{ role: "user", content: content }],
-      max_tokens: 1000
+      max_tokens: 800
     })
   });
   const data = await res.json();
@@ -427,7 +397,6 @@ async function analyzeMultipleImages(images, question) {
   return data.choices[0].message.content;
 }
 
-/* Main Request Processor */
 async function process(text) {
   if (!text.trim() && pendingImages.length === 0 && !pendingDocText) return;
 
@@ -436,7 +405,6 @@ async function process(text) {
   const currentDoc = pendingDocText;
   clearAttachments();
 
-  // Render User Message with images if attached
   const userDiv = document.createElement('div');
   userDiv.className = 'msg user';
   if (currentText) userDiv.appendChild(document.createTextNode(currentText));
@@ -451,48 +419,45 @@ async function process(text) {
   document.getElementById('chat').appendChild(userDiv);
   document.getElementById('chat').scrollTop = 999999;
 
-  // 1. Multi-Image Analysis Flow
   if (currentImages.length > 0) {
-    const statusMsg = appendMsg('bot', `Analyzing ${currentImages.length} image(s)...`, 'searching');
+    const statusMsg = appendMsg('bot', `Analyzing images...`, 'searching');
     try {
       const reply = await analyzeMultipleImages(currentImages, currentText);
       statusMsg.remove();
       appendMsg('bot', reply);
-      mem.history.push({ role: "user", content: currentText || "Image comparison" });
+      mem.history.push({ role: "user", content: currentText || "Image request" });
       mem.history.push({ role: "assistant", content: reply });
       saveMem();
     } catch (e) {
       statusMsg.remove();
-      appendMsg('bot', "Vision processing failed: " + e.message);
+      appendMsg('bot', "Vision processing error: " + e.message);
     }
-   return;
+    return;
   }
 
-  // 2. Text Stream & Deep Research Flow
-  let systemPrompt = "You are Cyrus, a personal AI assistant. Be direct, clear, and well-structured in markdown format.";
+  let systemPrompt = "You are Cyrus, a personal assistant built by Samuel. Be concise, direct, and factual.";
   
   if (currentDoc) {
-    systemPrompt += `\n\nUser uploaded a document. Extract insights from this text content:\n${currentDoc.slice(0, 12000)}`;
+    systemPrompt += `\n\nAttached Document Content:\n${currentDoc.slice(0, 8000)}`;
   }
 
-  const isDeepResearch = currentText.toLowerCase().includes("research") || currentText.toLowerCase().includes("deep search") || currentText.toLowerCase().includes("compare");
+  const isDeepResearch = currentText.toLowerCase().includes("research") || currentText.toLowerCase().includes("search");
   let searchLinks = [];
 
   if (isDeepResearch && getSerperKey()) {
     const research = await runDeepResearch(currentText);
-    systemPrompt += `\n\nDeep Research Findings:\n${research.context}\nSynthesize these into a structured research answer.`;
+    systemPrompt += `\n\nSearch Results:\n${research.context}`;
     searchLinks = research.links;
   }
 
   const messages = [{ role: "system", content: systemPrompt }]
-    .concat(mem.history.slice(-8))
+    .concat(mem.history.slice(-6))
     .concat([{ role: "user", content: currentText }]);
 
   const botDiv = appendMsg('bot', '');
   try {
     const finalReply = await streamCyrusResponse(messages, botDiv);
     
-    // Add citations if available
     if (searchLinks.length) {
       const linkDiv = document.createElement('div');
       linkDiv.className = 'linkList';
@@ -507,15 +472,10 @@ async function process(text) {
     mem.history.push({ role: "assistant", content: finalReply });
     saveMem();
 
-    // Generate Follow-up chips
-    renderFollowups([
-      "Can you expand further on this?",
-      "Summarize this in key bullet points",
-      "What are the practical next steps?"
-    ]);
+    renderFollowups(["Explain further", "Summarize key points"]);
 
   } catch (e) {
-    botDiv.textContent = "Error streaming response: " + e.message;
+    botDiv.textContent = "Error: " + e.message;
   }
 }
 
@@ -532,7 +492,7 @@ document.getElementById('textInput').addEventListener('keypress', function(e) {
 
 function startVoice() {
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { alert('Voice input is not supported in this browser.'); return; }
+  if (!Recognition) { alert('Voice not supported.'); return; }
   const micBtn = document.getElementById('micBtn');
   const rec = new Recognition();
   rec.lang = 'en-US';
