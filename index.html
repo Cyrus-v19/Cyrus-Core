@@ -12,7 +12,11 @@
 
 <!-- PDF Parsing Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
 
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -42,7 +46,6 @@
   }
   #header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
   
-  /* Compact Settings Icon */
   #settingsBtn {
     position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
     width: 28px; height: 28px; background: transparent; color: var(--text-secondary);
@@ -74,6 +77,11 @@
   .bot pre { background: #000; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
   .bot pre code { background: none; padding: 0; }
 
+  .doc-tag {
+    display: inline-block; background: rgba(255,255,255,0.2);
+    padding: 4px 8px; border-radius: 6px; font-size: 12px; margin-bottom: 6px; font-weight: 500;
+  }
+
   .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 13px; background: transparent; border: 1px dashed var(--border); }
   
   .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 8px; }
@@ -99,7 +107,6 @@
   .preview-card img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
   .preview-card .remove { cursor: pointer; color: var(--text-secondary); font-weight: bold; margin-left: 4px; }
 
-  /* Fully Mobile Responsive Input Bar */
   #inputRow {
     display: flex; align-items: center; padding: 8px 10px; gap: 6px;
     background: var(--sidebar); border-top: 1px solid var(--border);
@@ -108,7 +115,7 @@
   #textInput {
     flex: 1; padding: 10px 14px; border-radius: 20px; border: 1px solid var(--border);
     background: var(--bg); color: var(--text-primary); font-size: 14px; outline: none;
-    min-width: 0; /* Prevents overflow pushing buttons off screen */
+    min-width: 0;
   }
   .iconBtn {
     border: none; border-radius: 50%; width: 38px; height: 38px;
@@ -282,12 +289,18 @@ function removeImage(idx) { pendingImages.splice(idx, 1); renderPreviews(); }
 function removeDoc() { pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
 function clearAttachments() { pendingImages = []; pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
 
+function applyHighlighting(element) {
+  if (window.hljs) {
+    element.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+  }
+}
+
 function appendMsg(who, text, extraClass) {
   const div = document.createElement('div');
   div.className = 'msg ' + who + (extraClass ? ' ' + extraClass : '');
   if (who === 'bot') {
     div.innerHTML = marked.parse(text || '');
-    div.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+    applyHighlighting(div);
   } else {
     div.textContent = text;
   }
@@ -375,7 +388,7 @@ async function streamCyrusResponse(messages, botDiv) {
     }
   }
 
-  botDiv.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+  applyHighlighting(botDiv);
   return fullText;
 }
 
@@ -403,11 +416,22 @@ async function process(text) {
   const currentText = text;
   const currentImages = [...pendingImages];
   const currentDoc = pendingDocText;
+  const currentDocName = pendingDocName;
   clearAttachments();
 
   const userDiv = document.createElement('div');
   userDiv.className = 'msg user';
+
+  if (currentDocName) {
+    const docBadge = document.createElement('div');
+    docBadge.className = 'doc-tag';
+    docBadge.textContent = "📄 " + currentDocName;
+    userDiv.appendChild(docBadge);
+    if (currentText) userDiv.appendChild(document.createElement('br'));
+  }
+
   if (currentText) userDiv.appendChild(document.createTextNode(currentText));
+  
   if (currentImages.length) {
     const grid = document.createElement('div');
     grid.className = 'img-grid';
@@ -433,74 +457,84 @@ async function process(text) {
       appendMsg('bot', "Vision processing error: " + e.message);
     }
     return;
-  }
+ }
 
-  let systemPrompt = "You are Cyrus, a personal assistant built by Samuel. Be concise, direct, and factual.";
+let systemPrompt = "You are Cyrus, a personal assistant built by Samuel. Be concise, direct, and factual.";
+
+if (currentDoc) {
+  systemPrompt += "\n\nCRITICAL INSTRUCTION: Document uploaded: " + currentDocName + "\n";
+  systemPrompt += "Answer ONLY using this content:\n";
+  systemPrompt += "--- DOCUMENT START ---\n";
+  systemPrompt += currentDoc.slice(0, 10000) + "\n";
+  systemPrompt += "--- DOCUMENT END ---";
+}
+
+const isDeepResearch = currentText.toLowerCase().includes("research") || currentText.toLowerCase().includes("search");
+let searchLinks = [];
+
+if (isDeepResearch && getSerperKey()) {
+  const research = await runDeepResearch(currentText);
+  systemPrompt += `\n\nSearch Results:\n${research.context}`;
+  searchLinks = research.links;
+}
+
+// Clear memory slice when analyzing a doc to prevent old context leakage
+const historySlice = currentDoc ? [] : mem.history.slice(-6);
+
+const messages = [{ role: "system", content: systemPrompt }]
+  .concat(historySlice)
+  .concat([{ role: "user", content: currentText }]);
+
+const botDiv = appendMsg('bot', '');
+try {
+  const finalReply = await streamCyrusResponse(messages, botDiv);
   
-  if (currentDoc) {
-    systemPrompt += `\n\nAttached Document Content:\n${currentDoc.slice(0, 8000)}`;
+  if (searchLinks.length) {
+    const linkDiv = document.createElement('div');
+    linkDiv.className = 'linkList';
+    searchLinks.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.link;
+      a.textContent = "🔗 " + l.title;
+      a.target = '_blank';
+      linkDiv.appendChild(a);
+    });
+    botDiv.appendChild(linkDiv);
   }
 
-  const isDeepResearch = currentText.toLowerCase().includes("research") || currentText.toLowerCase().includes("search");
-  let searchLinks = [];
+  mem.history.push({ role: "user", content: currentText });
+  mem.history.push({ role: "assistant", content: finalReply });
+  saveMem();
 
-  if (isDeepResearch && getSerperKey()) {
-    const research = await runDeepResearch(currentText);
-    systemPrompt += `\n\nSearch Results:\n${research.context}`;
-    searchLinks = research.links;
-  }
+  renderFollowups(["Explain further", "Summarize key points"]);
 
-  const messages = [{ role: "system", content: systemPrompt }]
-    .concat(mem.history.slice(-6))
-    .concat([{ role: "user", content: currentText }]);
-
-  const botDiv = appendMsg('bot', '');
-  try {
-    const finalReply = await streamCyrusResponse(messages, botDiv);
-    
-    if (searchLinks.length) {
-      const linkDiv = document.createElement('div');
-      linkDiv.className = 'linkList';
-      searchLinks.forEach(l => {
-        const a = document.createElement('a'); a.href = l.link; a.textContent = "🔗 " + l.title; a.target = '_blank';
-        linkDiv.appendChild(a);
-      });
-      botDiv.appendChild(linkDiv);
-    }
-
-    mem.history.push({ role: "user", content: currentText });
-    mem.history.push({ role: "assistant", content: finalReply });
-    saveMem();
-
-    renderFollowups(["Explain further", "Summarize key points"]);
-
-  } catch (e) {
-    botDiv.textContent = "Error: " + e.message;
-  }
+} catch (e) {
+  botDiv.textContent = "Error: " + e.message;
+}
 }
 
 function sendText() {
-  const input = document.getElementById('textInput');
-  const text = input.value;
-  input.value = '';
-  process(text);
+const input = document.getElementById('textInput');
+const text = input.value;
+input.value = '';
+process(text);
 }
 
 document.getElementById('textInput').addEventListener('keypress', function(e) {
-  if (e.key === 'Enter') sendText();
+if (e.key === 'Enter') sendText();
 });
 
 function startVoice() {
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { alert('Voice not supported.'); return; }
-  const micBtn = document.getElementById('micBtn');
-  const rec = new Recognition();
-  rec.lang = 'en-US';
-  micBtn.classList.add('listening');
-  rec.onresult = (e) => { process(e.results[0][0].transcript); };
-  rec.onend = () => micBtn.classList.remove('listening');
-  rec.onerror = () => micBtn.classList.remove('listening');
-  rec.start();
+const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!Recognition) { alert('Voice not supported.'); return; }
+const micBtn = document.getElementById('micBtn');
+const rec = new Recognition();
+rec.lang = 'en-US';
+micBtn.classList.add('listening');
+rec.onresult = (e) => { process(e.results[0][0].transcript); };
+rec.onend = () => micBtn.classList.remove('listening');
+rec.onerror = () => micBtn.classList.remove('listening');
+rec.start();
 }
 </script>
 
