@@ -193,14 +193,14 @@
 </div>
 
 <script>
-let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || { name: null, history: [] };
+let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || { name: "", goals: [], projects: [], notes: [], tasks: [], history: [] };
+let lastBotReply = "";
 let pendingImages = [];
 let pendingDocText = "";
 let pendingDocName = "";
 
 function saveMem() { 
-  // Keep only the last 100 messages to prevent storage overflow
-  if (mem.history.length > 100) {
+  if (mem.history && mem.history.length > 100) {
     mem.history = mem.history.slice(-100);
   }
   localStorage.setItem('cyrus_mem', JSON.stringify(mem)); 
@@ -225,9 +225,11 @@ function saveKey() {
 
 window.onload = function() {
   if (!getKey()) openSettings();
-  mem.history.forEach(m => {
-    if (typeof m.content === 'string') appendMsg(m.role === 'user' ? 'user' : 'bot', m.content);
-  });
+  if (mem.history && Array.isArray(mem.history)) {
+    mem.history.forEach(m => {
+      if (typeof m.content === 'string') appendMsg(m.role === 'user' ? 'user' : 'bot', m.content);
+    });
+  }
 };
 
 function handleImageSelect(e) {
@@ -253,18 +255,15 @@ async function handleDocumentSelect(e) {
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       let text = "";
       
-      // Try extracting text first
       for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
         text += content.items.map(item => item.str).join(" ") + "\n";
       }
 
-      // If text exists, use it
       if (text.trim().length > 20) {
         pendingDocText = text;
       } else {
-        // SCANNED PDF FALLBACK: Convert page 1 to image canvas for Vision!
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement('canvas');
@@ -285,7 +284,8 @@ async function handleDocumentSelect(e) {
     alert("Could not process file: " + err.message);
   }
   renderPreviews();
-  }
+}
+
 function renderPreviews() {
   const panel = document.getElementById('attachmentsPreview');
   panel.innerHTML = "";
@@ -349,6 +349,27 @@ function renderFollowups(suggestions) {
   document.getElementById('chat').scrollTop = 999999;
 }
 
+// Built-in Assistant Commands Interceptor
+function handleBuiltin(text) {
+  const t = text.toLowerCase().trim();
+  if (t.startsWith('remember my name is')) {
+    mem.name = text.slice(20).trim(); saveMem();
+    return 'Got it, ' + mem.name + '.';
+  }
+  if (t.startsWith('add goal ')) { mem.goals.push(text.slice(9)); saveMem(); return 'Goal added.'; }
+  if (t.startsWith('add project ')) { mem.projects.push(text.slice(12)); saveMem(); return 'Project added.'; }
+  if (t.startsWith('add note ')) { mem.notes.push(text.slice(9)); saveMem(); return 'Note saved.'; }
+  if (t.startsWith('add task ')) { mem.tasks.push(text.slice(9)); saveMem(); return 'Task added.'; }
+  if (t === 'show memory') { return JSON.stringify(mem, null, 2); }
+  if (t === 'save this') {
+    if (!lastBotReply) return "There's nothing recent to save yet.";
+    mem.notes.push(lastBotReply);
+    saveMem();
+    return 'Saved that as a note.';
+  }
+  return null;
+}
+
 async function searchWeb(query) {
   const key = getSerperKey();
   if (!key) return null;
@@ -396,26 +417,27 @@ async function streamCyrusResponse(messages, botDiv) {
   let fullText = "";
 
   while (true) {
-  const { done, value } = await reader.read();
-  if (done) break;
-  const chunk = decoder.decode(value);
-  const lines = chunk.split("\n");
-  for (const line of lines) {
-    if (line.startsWith("data: ") && line !== "data: [DONE]") {
-      try {
-        const parsed = JSON.parse(line.substring(6));
-        const content = parsed.choices[0]?.delta?.content || "";
-        fullText += content;
-        botDiv.textContent = fullText;
-        document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
-      } catch (e) {}
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        try {
+          const parsed = JSON.parse(line.substring(6));
+          const content = parsed.choices[0]?.delta?.content || "";
+          fullText += content;
+          botDiv.textContent = fullText;
+          document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+        } catch (e) {}
+      }
     }
   }
-}
 
-botDiv.innerHTML = marked.parse(fullText);
-applyHighlighting(botDiv);
-return fullText;
+  botDiv.innerHTML = marked.parse(fullText);
+  applyHighlighting(botDiv);
+  lastBotReply = fullText;
+  return fullText;
 }
 
 async function analyzeMultipleImages(images, question) {
@@ -445,6 +467,18 @@ async function process(text) {
   const currentDocName = pendingDocName;
   clearAttachments();
 
+  // Intercept Builtin Commands
+  const builtin = handleBuiltin(currentText);
+  if (builtin && currentImages.length === 0 && !currentDocText) {
+    appendMsg('user', currentText);
+    appendMsg('bot', builtin);
+    if (!mem.history) mem.history = [];
+    mem.history.push({ role: "user", content: currentText });
+    mem.history.push({ role: "assistant", content: builtin });
+    saveMem();
+    return;
+  }
+
   const userDiv = document.createElement('div');
   userDiv.className = 'msg user';
 
@@ -460,124 +494,85 @@ async function process(text) {
   
   if (currentImages.length) {
     const grid = document.createElement('div');
-    grid.className = 'img-grid';
-    currentImages.forEach(img => {
-      const el = document.createElement('img'); el.src = img; grid.appendChild(el);
-    });
-    userDiv.appendChild(grid);
-  }
-  document.getElementById('chat').appendChild(userDiv);
-  document.getElementById('chat').scrollTop = 999999;
-
-  if (currentImages.length > 0) {
-    const statusMsg = appendMsg('bot', `Analyzing images...`, 'searching');
-    try {
-      const reply = await analyzeMultipleImages(currentImages, currentText);
-      statusMsg.remove();
-      appendMsg('bot', reply);
-      mem.history.push({ role: "user", content: currentText || "Image request" });
-      mem.history.push({ role: "assistant", content: reply });
-      saveMem();
-      renderFollowups(["Explain in detail", "What else is in this image?"]);
-    } catch (e) {
-      statusMsg.remove();
-      appendMsg('bot', "Vision processing error: " + e.message);
+  grid.className = 'image-grid';
+        currentImages.forEach(img => {
+            const imgEl = document.createElement('img');
+            imgEl.src = img;
+            grid.appendChild(imgEl);
+        });
+        userDiv.appendChild(grid);
     }
-    return;
-      }
 
-let systemPrompt = "You are Cyrus, an AI assistant built by Samuel. You have access to real-time web search. When Search Results are provided in the prompt, USE THEM directly to answer the user's question concisely and accurately. Never claim you cannot browse the web or lack real-time access when search results are provided.";
+    const chatContainer = document.getElementById('chat');
+    chatContainer.appendChild(userDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
 
-if (mem.name) {
-  systemPrompt += `\n\nThe user's name is ${mem.name}.`;
-}
+    let fullPrompt = currentText;
+    if (currentDoc) {
+        fullPrompt = `Document content:\n${currentDoc}\n\nUser prompt: ${currentText}`;
+    }
 
-if (currentDoc) {
-  const maxDocChars = 50000; // Expands PDF capacity to ~15-20 pages
-  const docContent = currentDoc.length > maxDocChars 
-    ? currentDoc.slice(0, maxDocChars) + "\n[Note: Document truncated due to length limits]" 
-    : currentDoc;
+    if (!mem.history) mem.history = [];
+    mem.history.push({ role: "user", content: fullPrompt });
+    saveMem();
 
-  systemPrompt += "\n\nCRITICAL INSTRUCTION: Document uploaded: " + currentDocName + "\n";
-  systemPrompt += "Answer ONLY using this content:\n";
-  systemPrompt += "--- DOCUMENT START ---\n";
-  systemPrompt += docContent + "\n";
-  systemPrompt += "--- DOCUMENT END ---";
-}
+    const botDiv = document.createElement('div');
+    botDiv.className = 'msg bot';
+    chatContainer.appendChild(botDiv);
 
-const searchKeywords = [
-  "search", "research", "news", "latest", "today", "current", 
-  "who is", "price", "weather", "score", "live", "recent", "what happened"
-];
+    try {
+        let botResponse = "";
+        if (currentImages.length > 0) {
+            botResponse = await analyzeMultipleImages(currentImages, fullPrompt);
+            botDiv.innerHTML = marked.parse(botResponse);
+            applyHighlighting(botDiv);
+            lastBotReply = botResponse;
+        } else {
+            const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "qwen/qwen3.6-27b",
+                    messages: mem.history,
+                    stream: true,
+                    max_tokens: 1500
+                })
+            });
 
-const isDeepResearch = searchKeywords.some(keyword => currentText.toLowerCase().includes(keyword));
-let searchLinks = [];
+            if (!res.ok) throw new Error("API request failed");
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let fullText = "";
 
-if (isDeepResearch && getSerperKey()) {
-  const research = await runDeepResearch(currentText);
-  systemPrompt += `\n\n=== REAL-TIME WEB SEARCH RESULTS ===\n${research.context}\n=== END SEARCH RESULTS ===\n`;
-  searchLinks = research.links;
-}
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value);
+                const lines = chunk.split("\n");
+                for (const line of lines) {
+                    if (line.startsWith("data: ") && line !== "data: [DONE]") {
+                        try {
+                            const parsed = JSON.parse(line.substring(6));
+                            const content = parsed.choices[0]?.delta?.content || "";
+                            fullText += content;
+                            botDiv.textContent = fullText;
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        } catch (e) {}
+                    }
+                }
+            }
+            botDiv.innerHTML = marked.parse(fullText);
+            applyHighlighting(botDiv);
+            lastBotReply = fullText;
+            botResponse = fullText;
+        }
 
-// Clear memory slice when analyzing a doc to prevent old context leakage
-const historySlice = currentDoc ? mem.history.slice(-4) : mem.history.slice(-20);
-
-const messages = [{ role: "system", content: systemPrompt }]
-  .concat(historySlice)
-  .concat([{ role: "user", content: currentText }]);
-
-const botDiv = appendMsg('bot', '');
-try {
-  const finalReply = await streamCyrusResponse(messages, botDiv);
-  
-  if (searchLinks.length) {
-    const linkDiv = document.createElement('div');
-    linkDiv.className = 'linkList';
-    searchLinks.forEach(l => {
-      const a = document.createElement('a');
-      a.href = l.link;
-      a.textContent = "🔗 " + l.title;
-      a.target = '_blank';
-      linkDiv.appendChild(a);
-    });
-    botDiv.appendChild(linkDiv);
-  }
-
-  mem.history.push({ role: "user", content: currentText });
-  mem.history.push({ role: "assistant", content: finalReply });
-  saveMem();
-
-  renderFollowups(["Explain further", "Summarize key points"]);
-
-} catch (e) {
-  botDiv.textContent = "Error: " + e.message;
-}
-}
-
-function sendText() {
-const input = document.getElementById('textInput');
-const text = input.value;
-input.value = '';
-process(text);
-}
-
-document.getElementById('textInput').addEventListener('keypress', function(e) {
-if (e.key === 'Enter') sendText();
-});
-
-function startVoice() {
-const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!Recognition) { alert('Voice not supported.'); return; }
-const micBtn = document.getElementById('micBtn');
-const rec = new Recognition();
-rec.lang = 'en-US';
-micBtn.classList.add('listening');
-rec.onresult = (e) => { process(e.results[0][0].transcript); };
-rec.onend = () => micBtn.classList.remove('listening');
-rec.onerror = () => micBtn.classList.remove('listening');
-rec.start();
+        mem.history.push({ role: "assistant", content: botResponse });
+        saveMem();
+    } catch (err) {
+        botDiv.textContent = "Error: " + err.message;
+    }
 }
 </script>
-
 </body>
 </html>
