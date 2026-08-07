@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cyrus</title>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0D1117;
+    --sidebar: #111827;
+    --bubble-bot: #1F2937;
+    --bubble-user: #2563EB;
+    --text-primary: #F9FAFB;
+    --text-secondary: #9CA3AF;
+    --accent: #10A37F;
+    --border: #374151;
+  }
+  html, body { height: 100%; overscroll-behavior: none; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text-primary);
+    height: 100dvh; display: flex; flex-direction: column;
+    overflow: hidden; position: fixed; width: 100%; top: 0; left: 0;
+  }
+
+  #header {
+    padding: 13px 16px; background: rgba(17, 24, 39, 0.85); backdrop-filter: blur(10px);
+    text-align: center; font-weight: 600; font-size: 16px; letter-spacing: 0.3px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    flex-shrink: 0; position: relative; z-index: 20;
+  }
+  #header .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulseDot 2.4s ease-in-out infinite;
+  }
+  @keyframes pulseDot { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  #settingsBtn {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px; background: transparent; color: var(--text-secondary);
+    border: none; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; touch-action: manipulation; border-radius: 50%;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.3s ease;
+  }
+  #settingsBtn svg { width: 19px; height: 19px; pointer-events: none; }
+  #settingsBtn:active { transform: translateY(-50%) rotate(45deg); background: rgba(255,255,255,0.08); }
+
+  #chat {
+    flex: 1; overflow-y: auto; padding: 18px 12px 8px;
+    display: flex; flex-direction: column; gap: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #emptyState {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px; gap: 6px; animation: fadeIn 0.5s ease;
+  }
+  #emptyState .mark { opacity: 0.9; margin-bottom: 6px; }
+  #emptyState h1 {
+    font-size: 22px; font-weight: 600;
+    background: linear-gradient(135deg, #F9FAFB 20%, var(--accent) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #emptyState p { color: var(--text-secondary); font-size: 13.5px; margin-top: 4px; max-width: 260px; }
+  #starterChips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; max-width: 320px; }
+  .starterChip {
+    background: var(--bubble-bot); border: 1px solid var(--border); color: var(--text-primary);
+    padding: 9px 14px; border-radius: 14px; font-size: 12.5px; cursor: pointer;
+    transition: border-color 0.2s ease, transform 0.15s ease; touch-action: manipulation;
+  }
+  .starterChip:active { transform: scale(0.96); border-color: var(--accent); }
+
+  .msg {
+    padding: 12px 16px; border-radius: 16px;
+    max-width: 85%; line-height: 1.55; font-size: 15px;
+    word-wrap: break-word; animation: msgIn 0.28s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .user { background: var(--bubble-user); color: white; margin-left: auto; border-bottom-right-radius: 4px; box-shadow: 0 2px 10px rgba(37,99,235,0.25); }
+  .bot { background: var(--bubble-bot); color: var(--text-primary); margin-right: auto; border-bottom-left-radius: 4px; border: 1px solid rgba(255,255,255,0.04); }
+
+  .bot p { margin-bottom: 8px; } .bot p:last-child { margin-bottom: 0; }
+  .bot ul, .bot ol { margin: 8px 0 8px 20px; }
+  .bot code { background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 13px; }
+  .bot pre { background: #000; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+  .bot pre code { background: none; padding: 0; }
+
+  .doc-tag {
+    display: inline-flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.15);
+    padding: 4px 9px; border-radius: 6px; font-size: 12px; margin-bottom: 6px; font-weight: 500;
+  }
+
+  .typingBubble { display: flex; gap: 5px; align-items: center; padding: 4px 2px; }
+  .typingBubble .tdot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--text-secondary);
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+  .typingBubble .tdot:nth-child(2) { animation-delay: 0.15s; }
+  .typingBubble .tdot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-5px); opacity: 1; } }
+
+  .msg.searching { color: var(--text-secondary); font-style: italic; font-size: 13px; background: transparent; border: 1px dashed var(--border); display: flex; align-items: center; gap: 8px; }
+  .generated-img { max-width: 100%; border-radius: 14px; margin-top: 10px; display: block; box-shadow: 0 8px 24px rgba(0,0,0,0.4); animation: msgIn 0.4s ease; }
+  .img-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .img-actions a { background: rgba(255,255,255,0.08); color: var(--text-secondary); border: none; padding: 6px 12px; border-radius: 14px; font-size: 12px; text-decoration: none; }
+
+  .searchSpin { width: 12px; height: 12px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .img-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; margin-top: 8px; }
+  .img-grid img { width: 100%; height: 70px; object-fit: cover; border-radius: 6px; }
+
+  .linkList { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
+  .linkList a { color: var(--accent); font-size: 12.5px; text-decoration: none; word-break: break-all; display: flex; align-items: center; gap: 5px; }
+
+  #attachmentsPreview {
+    display: none; padding: 8px 12px; background: var(--sidebar);
+    border-top: 1px solid var(--border); flex-wrap: wrap; gap: 6px; align-items: center;
+  }
+  .preview-card {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--bg); border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; font-size: 12px;
+    animation: msgIn 0.2s ease;
+  }
+  .preview-card img { width: 26px; height: 26px; object-fit: cover; border-radius: 4px; }
+  .preview-card .remove { cursor: pointer; color: var(--text-secondary); display: flex; margin-left: 2px; }
+
+  #inputRow {
+    display: flex; align-items: center; padding: 10px; gap: 6px;
+    background: var(--sidebar); border-top: 1px solid var(--border);
+    flex-shrink: 0; width: 100%;
+  }
+  #textInput {
+    flex: 1; padding: 11px 15px; border-radius: 22px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text-primary); font-size: 14.5px; outline: none;
+    min-width: 0; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  #textInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(16,163,127,0.12); }
+
+  .iconBtn {
+    border: none; border-radius: 50%; width: 40px; height: 40px;
+    background: var(--bubble-user); color: white;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; cursor: pointer; touch-action: manipulation;
+    transition: transform 0.12s ease, opacity 0.12s ease, background 0.2s ease;
+  }
+  .iconBtn:active { transform: scale(0.88); opacity: 0.85; }
+  .iconBtn.secondary { background: var(--bubble-bot); border: 1px solid var(--border); }
+  .iconBtn.listening { background: var(--accent); animation: micPulse 1.4s ease-in-out infinite; }
+  @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(16,163,127,0.5); } 50% { box-shadow: 0 0 0 8px rgba(16,163,127,0); } }
+  .iconBtn svg { width: 18px; height: 18px; pointer-events: none; }
+
+  #setup {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(13, 17, 23, 0.7); backdrop-filter: blur(4px); z-index: 100;
+    display: none; flex-direction: column; justify-content: center; align-items: center; padding: 20px;
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+  #setup.visible { opacity: 1; }
+  .setup-card {
+    background: var(--sidebar); border: 1px solid var(--border); padding: 22px; border-radius: 16px;
+    width: 100%; max-width: 320px; transform: scale(0.94) translateY(8px); transition: transform 0.25s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  #setup.visible .setup-card { transform: scale(1) translateY(0); }
+  .setup-card h3 { margin-bottom: 14px; font-size: 16px; font-weight: 600; }
+  .setup-card p { color: var(--text-secondary); margin-bottom: 6px; font-size: 12.5px; }
+  .setup-card input {
+    width: 100%; padding: 11px; margin-bottom: 12px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text-primary); font-size: 13px; outline: none;
+    transition: border-color 0.2s ease;
+  }
+  .setup-card input:focus { border-color: var(--accent); }
+  .setup-card button {
+    width: 100%; border-radius: 9px; padding: 11px; border: none;
+    background: var(--accent); color: white; font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 8px;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .setup-card button:active { transform: scale(0.98); }
+  .setup-card .closeBtn { background: var(--bubble-bot); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <span style="font-size:16px;">💠</span>
+  <span class="dot"></span>Cyrus
+  <button id="settingsBtn" onclick="openSettings()" title="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+  </button>
+</div>
+
+<div id="setup">
+  <div class="setup-card">
+    <h3>Settings</h3>
+    <p>Groq API key (free)</p>
+    <input type="text" id="apiKeyInput" placeholder="gsk_...">
+    <p>Serper API key (free, for live search)</p>
+    <input type="text" id="serperKeyInput" placeholder="your serper key">
+    <button onclick="saveKey()">Save Keys</button>
+    <button class="closeBtn" onclick="closeSettings()">Cancel</button>
+  </div>
+</div>
+
+<div id="chat"></div>
+
+<div id="attachmentsPreview"></div>
+
+<div id="inputRow">
+  <input type="file" id="imageInput" accept="image/*" multiple style="display:none;" onchange="handleImageSelect(event)">
+  <button class="iconBtn secondary" onclick="document.getElementById('imageInput').click()" title="Upload Images">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+  </button>
+
+  <input type="file" id="pdfInput" accept="application/pdf,.txt" style="display:none;" onchange="handleDocumentSelect(event)">
+  <button class="iconBtn secondary" onclick="document.getElementById('pdfInput').click()" title="Upload PDF/Text">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+  </button>
+
+  <button class="iconBtn secondary" id="micBtn" onclick="startVoice()" title="Voice input">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+  </button>
+
+  <input type="text" id="textInput" placeholder="Message Cyrus...">
+
+  <button class="iconBtn" onclick="sendText()" title="Send">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+  </button>
+</div>
+
+<script>
+let mem = JSON.parse(localStorage.getItem('cyrus_mem')) || { name: "", goals: [], projects: [], notes: [], tasks: [], history: [] };
+let lastBotReply = "";
+let pendingImages = [];
+let pendingDocText = "";
+let pendingDocName = "";
+
+const STARTER_PROMPTS = [
+  "What can you help me with?",
+  "Search today's top news",
+  "Add task: review Rix picks",
+  "Summarize a PDF I upload"
+];
+
+function saveMem() {
+  if (mem.history && mem.history.length > 100) mem.history = mem.history.slice(-100);
+  localStorage.setItem('cyrus_mem', JSON.stringify(mem));
+}
+function getKey() { return localStorage.getItem('cyrus_key'); }
+function getSerperKey() { return localStorage.getItem('cyrus_serper_key'); }
+
+function openSettings() {
+  document.getElementById('apiKeyInput').value = getKey() || '';
+  document.getElementById('serperKeyInput').value = getSerperKey() || '';
+  const s = document.getElementById('setup');
+  s.style.display = 'flex';
+  requestAnimationFrame(() => s.classList.add('visible'));
+}
+function closeSettings() {
+  const s = document.getElementById('setup');
+  s.classList.remove('visible');
+  setTimeout(() => { s.style.display = 'none'; }, 200);
+}
+function saveKey() {
+  const k = document.getElementById('apiKeyInput').value.trim();
+  const sk = document.getElementById('serperKeyInput').value.trim();
+  if (k) localStorage.setItem('cyrus_key', k);
+  if (sk) localStorage.setItem('cyrus_serper_key', sk);
+  closeSettings();
+}
+
+function renderEmptyState() {
+  const chat = document.getElementById('chat');
+  const wrap = document.createElement('div');
+  wrap.id = 'emptyState';
+  wrap.innerHTML = `
+    <div class="mark" style="font-size:44px; line-height:1;">💠</div>
+    <h1>Hey${mem.name ? ', ' + mem.name : ''}. I'm Cyrus.</h1>
+    <p>Ask me anything, search the live web, upload a document or image, or just talk.</p>
+    <div id="starterChips"></div>
+  `;
+  chat.appendChild(wrap);
+  const chipWrap = wrap.querySelector('#starterChips');
+  STARTER_PROMPTS.forEach(p => {
+    const chip = document.createElement('div');
+    chip.className = 'starterChip';
+    chip.textContent = p;
+    chip.onclick = () => { removeEmptyState(); process(p); };
+    chipWrap.appendChild(chip);
+  });
+}
+function removeEmptyState() {
+  const el = document.getElementById('emptyState');
+  if (el) el.remove();
+}
+
+window.onload = function() {
+  if (!getKey()) openSettings();
+  if (mem.history && mem.history.length > 0) {
+    mem.history.forEach(m => {
+      if (typeof m.content === 'string') {
+        appendMsg(m.role === 'user' ? 'user' : 'bot', m.content);
+        if (m.role === 'assistant') lastBotReply = m.content;
+      }
+    });
+  } else {
+    renderEmptyState();
+  }
+  document.getElementById('textInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') sendText();
+  });
+};
+
+function handleImageSelect(e) {
+  const files = Array.from(e.target.files).slice(0, 6);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(evt) { pendingImages.push(evt.target.result); renderPreviews(); };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleDocumentSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  pendingDocName = file.name;
+  try {
+    if (file.type === "application/pdf") {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 15); i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => item.str).join(" ") + "\n";
+      }
+      if (text.trim().length > 20) {
+        pendingDocText = text;
+      } else {
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.height = viewport.height; canvas.width = viewport.width;
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        pendingImages.push(canvas.toDataURL('image/png'));
+        pendingDocText = "";
+      }
+    } else {
+      pendingDocText = await file.text();
+    }
+  } catch(err) {
+    alert("Could not process file: " + err.message);
+  }
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const panel = document.getElementById('attachmentsPreview');
+  panel.innerHTML = "";
+  if (pendingImages.length === 0 && !pendingDocText) { panel.style.display = "none"; return; }
+  panel.style.display = "flex";
+
+  const closeSvg = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+  pendingImages.forEach((img, idx) => {
+    const card = document.createElement('div');
+    card.className = "preview-card";
+    card.innerHTML = `<img src="${img}"> Image ${idx+1} <span class="remove" onclick="removeImage(${idx})">${closeSvg}</span>`;
+    panel.appendChild(card);
+  });
+
+  if (pendingDocText) {
+    const card = document.createElement('div');
+    card.className = "preview-card";
+    card.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ${pendingDocName} <span class="remove" onclick="removeDoc()">${closeSvg}</span>`;
+    panel.appendChild(card);
+  }
+}
+
+function removeImage(idx) { pendingImages.splice(idx, 1); renderPreviews(); }
+function removeDoc() { pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
+function clearAttachments() { pendingImages = []; pendingDocText = ""; pendingDocName = ""; renderPreviews(); }
+
+function applyHighlighting(element) {
+  if (window.hljs) element.querySelectorAll('pre code').forEach((block) => hljs.highlightElement(block));
+}
+
+function appendMsg(who, text, extraClass) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + who + (extraClass ? ' ' + extraClass : '');
+  if (who === 'bot' && !extraClass) {
+    div.innerHTML = marked.parse(text || '');
+    applyHighlighting(div);
+    lastBotReply = text;
+  } else {
+    div.textContent = text;
+  }
+  document.getElementById('chat').appendChild(div);
+  document.getElementById('chat').scrollTop = 999999;
+  return div;
+}
+
+function appendTypingBubble() {
+  const div = document.createElement('div');
+  div.className = 'msg bot';
+  div.innerHTML = '<div class="typingBubble"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div>';
+  document.getElementById('chat').appendChild(div);
+  document.getElementById('chat').scrollTop = 999999;
+  return div;
+}
+
+function handleBuiltin(text) {
+  const t = text.toLowerCase().trim();
+  if (t.startsWith('remember my name is')) { mem.name = text.slice(20).trim(); saveMem(); return 'Got it, ' + mem.name + '.'; }
+  if (t.startsWith('add goal ')) { mem.goals.push(text.slice(9)); saveMem(); return 'Goal added.'; }
+  if (t.startsWith('add project ')) { mem.projects.push(text.slice(12)); saveMem(); return 'Project added.'; }
+  if (t.startsWith('add note ')) { mem.notes.push(text.slice(9)); saveMem(); return 'Note saved.'; }
+  if (t.startsWith('add task ')) { mem.tasks.push(text.slice(9)); saveMem(); return 'Task added.'; }
+  if (t === 'show memory') { return JSON.stringify(mem, null, 2); }
+  if (t === 'save this') {
+    if (!lastBotReply) return "There's nothing recent to save yet.";
+    mem.notes.push(lastBotReply); saveMem();
+    return 'Saved that as a note.';
+  }
+  return null;
+}
+
+async function searchWeb(query) {
+  const key = getSerperKey();
+  if (!key) return null;
+  const res = await fetch("https://google.serper.dev/search", {
+    method: "POST", headers: { "X-API-KEY": key, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: query })
+  });
+  return await res.json();
+}
+
+async function runDeepResearch(userQuery) {
+  const statusMsg = appendMsg('bot', '', 'searching');
+  statusMsg.innerHTML = '<div class="searchSpin"></div> Searching the web...';
+  let searchResults = [], links = [];
+  const primary = await searchWeb(userQuery);
+  if (primary) {
+    if (primary.answerBox) searchResults.push('Direct answer: ' + (primary.answerBox.answer || primary.answerBox.snippet || ''));
+    if (primary.organic) primary.organic.slice(0, 5).forEach(r => {
+      searchResults.push(`${r.title}: ${r.snippet}`);
+      links.push({ title: r.title, link: r.link });
+    });
+  }
+  statusMsg.remove();
+  return { context: searchResults.join("\n\n"), links: links };
+}
+
+function buildSystemPrompt(extraContext) {
+  let systemPrompt = "You are Cyrus, a personal AI assistant built specifically for Samuel. " +
+    "You were created by Samuel using free AI tools. You are NOT ChatGPT, NOT OpenAI's assistant, and NOT " +
+    "affiliated with OpenAI, Google, or any other company as a product. If asked who made you, always say: " +
+    "\"I'm Cyrus, a personal assistant Samuel built for himself.\" Never mention the underlying model name or any AI company. " +
+    "\nName: " + mem.name + "\nGoals: " + JSON.stringify(mem.goals) + "\nProjects: " + JSON.stringify(mem.projects) +
+    "\nNotes: " + JSON.stringify(mem.notes) + "\nTasks: " + JSON.stringify(mem.tasks) +
+    "\nBe concise and direct. You DO have live internet search — a search happens automatically before you answer " +
+    "time-sensitive questions, with results provided below when relevant. Never say you lack internet access. " +
+    "You can also generate images when asked (e.g. \"draw a sunset\", \"generate an image of a fox\") — this happens " +
+    "automatically outside of this text response when detected, so if asked what you can do, mention image generation " +
+    "as a real capability. " +
+    "\n\nYou are also happy to engage fully and creatively with hypothetical, speculative, sci-fi, and fictional " +
+    "engineering or physics questions (e.g. \"how would you design a fictional device from a movie\", thought experiments, " +
+    "brainstorming, worldbuilding). These are clearly creative or educational in nature and should be treated as normal, " +
+    "engaging conversation — do not refuse or add unnecessary caveats to speculative or fictional technical questions. " +
+    "Only decline requests that seek genuine real-world harmful capability (e.g. actual weapons synthesis instructions), " +
+    "not fictional or hypothetical framing.";
+  if (extraContext) systemPrompt += extraContext;
+  return systemPrompt;
+}
+
+async function streamCyrusResponse(messages, botDiv) {
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST", headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "openai/gpt-oss-120b", messages: messages, stream: true, max_tokens: 1200 })
+  });
+  if (!res.ok) throw new Error("Groq API error. Check your API key in Settings.");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let fullText = "";
+  let firstChunk = true;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value);
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ") && line !== "data: [DONE]") {
+        try {
+          const parsed = JSON.parse(line.substring(6));
+          const content = parsed.choices[0]?.delta?.content || "";
+          if (content && firstChunk) { botDiv.innerHTML = ''; firstChunk = false; }
+          fullText += content;
+          botDiv.textContent = fullText;
+          document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+        } catch (e) {}
+      }
+    }
+  }
+  botDiv.innerHTML = marked.parse(fullText);
+  applyHighlighting(botDiv);
+  lastBotReply = fullText;
+  return fullText;
+}
+
+function buildImageUrl(prompt) {
+  const seed = Math.floor(Math.random() * 1000000);
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
+}
+
+async function generateImageInChat(prompt) {
+  const botDiv = appendTypingBubble();
+  botDiv.innerHTML = '<div class="typingBubble"><div class="tdot"></div><div class="tdot"></div><div class="tdot"></div></div> Creating your image...';
+
+  const imgUrl = buildImageUrl(prompt);
+  const img = new Image();
+
+  img.onload = function() {
+    botDiv.innerHTML = `<p>Here's what I came up with:</p>
+      <img class="generated-img" src="${imgUrl}" alt="${prompt.replace(/"/g, '')}">
+      <div class="img-actions"><a href="${imgUrl}" target="_blank">Open full size</a></div>`;
+    document.getElementById('chat').scrollTop = document.getElementById('chat').scrollHeight;
+    mem.history.push({ role: "user", content: prompt });
+    mem.history.push({ role: "assistant", content: `[Generated an image for: ${prompt}]` });
+    saveMem();
+  };
+  img.onerror = function() {
+    botDiv.textContent = "Image generation failed or timed out. Try a simpler prompt.";
+  };
+  img.src = imgUrl;
+}
+
+async function analyzeMultipleImages(images, question) {
+  const content = [{ type: "text", text: question || "Describe what you see in detail." }];
+  images.forEach(img => content.push({ type: "image_url", image_url: { url: img } }));
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST", headers: { "Authorization": "Bearer " + getKey(), "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "qwen/qwen3.6-27b", messages: [{ role: "user", content: content }], max_tokens: 900 })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.choices[0].message.content;
+}
+
+async function process(text) {
+  if (!text.trim() && pendingImages.length === 0 && !pendingDocText) return;
+  removeEmptyState();
+
+  const t = text.toLowerCase().trim();
+
+  const genPatterns = [
+    /^(generate|create|make|draw)\s+(an?\s+)?(image|picture|photo|painting|drawing)\s+of\s+(.+)/i,
+    /^(show|give)\s+me\s+(an?\s+)?(image|picture|photo)\s+of\s+(.+)/i,
+    /^draw\s+(me\s+)?(.+)/i,
+    /^i\s+want\s+(an?\s+)?(image|picture|photo)\s+of\s+(.+)/i
+  ];
+  if (pendingImages.length === 0 && !pendingDocText) {
+    for (const pattern of genPatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        appendMsg('user', text);
+        const promptText = match[match.length - 1].trim();
+        await generateImageInChat(promptText);
+        return;
+      }
+    }
+  }
+
+  const builtin = handleBuiltin(text);
+  if (builtin && pendingImages.length === 0 && !pendingDocText) {
+    appendMsg('user', text);
+    appendMsg('bot', builtin);
+    return;
+  }
+
+  const currentText = text, currentImages = [...pendingImages], currentDoc = pendingDocText, currentDocName = pendingDocName;
+  clearAttachments();
+
+  const userDiv = document.createElement('div');
+  userDiv.className = 'msg user';
+  if (currentDocName) {
+    const docBadge = document.createElement('div');
+    docBadge.className = 'doc-tag';
+    docBadge.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> ' + currentDocName;
+    userDiv.appendChild(docBadge);
+    if (currentText) userDiv.appendChild(document.createElement('br'));
+  }
+  if (currentText) userDiv.appendChild(document.createTextNode(currentText));
+  if (currentImages.length) {
+    const grid = document.createElement('div');
+    grid.className = 'img-grid';
+    currentImages.forEach(img => { const el = document.createElement('img'); el.src = img; grid.appendChild(el); });
+    userDiv.appendChild(grid);
+  }
+  document.getElementById('chat').appendChild(userDiv);
+  document.getElementById('chat').scrollTop = 999999;
+
+  if (currentImages.length > 0) {
+    const statusMsg = appendTypingBubble();
+    try {
+      const reply = await analyzeMultipleImages(currentImages, currentText);
+      statusMsg.innerHTML = marked.parse(reply);
+      applyHighlighting(statusMsg);
+      lastBotReply = reply;
+      mem.history.push({ role: "user", content: currentText || "Image request" });
+      mem.history.push({ role: "assistant", content: reply });
+      saveMem();
+    } catch (e) {
+      statusMsg.textContent = "Vision error: " + e.message;
+    }
+    return;
+  }
+
+  let extraContext = "";
+  if (currentDoc) {
+    const maxDocChars = 50000;
+    const docContent = currentDoc.length > maxDocChars ? currentDoc.slice(0, maxDocChars) + "\n[Truncated]" : currentDoc;
+    extraContext += "\n\nCRITICAL: A document named \"" + currentDocName + "\" was just uploaded. Answer ONLY using its content below.\n--- DOCUMENT START ---\n" + docContent + "\n--- DOCUMENT END ---";
+  }
+
+  const searchKeywords = ["search", "news", "latest", "today", "current", "who is", "price", "weather", "score", "recent", "what happened"];
+  const needsSearch = searchKeywords.some(k => t.includes(k));
+  let searchLinks = [];
+
+  if (needsSearch && getSerperKey()) {
+    const research = await runDeepResearch(currentText);
+    extraContext += `\n\n=== LIVE WEB SEARCH RESULTS ===\n${research.context}\n=== END SEARCH RESULTS ===\n\nCRITICAL: Only state facts explicitly present in the search results above. Do NOT invent details.`;
+    searchLinks = research.links;
+  }
+
+  const systemPrompt = buildSystemPrompt(extraContext);
+  const historySlice = currentDoc ? mem.history.slice(-4) : mem.history.slice(-20);
+  const messages = [{ role: "system", content: systemPrompt }].concat(historySlice).concat([{ role: "user", content: currentText }]);
+
+  const botDiv = appendTypingBubble();
+  try {
+    const finalReply = await streamCyrusResponse(messages, botDiv);
+    if (searchLinks.length) {
+      const linkDiv = document.createElement('div');
+      linkDiv.className = 'linkList';
+      searchLinks.forEach(l => {
+        const a = document.createElement('a');
+        a.href = l.link; a.target = '_blank';
+        a.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> ' + l.title;
+        linkDiv.appendChild(a);
+      });
+      botDiv.appendChild(linkDiv);
+    }
+    mem.history.push({ role: "user", content: currentText });
+    mem.history.push({ role: "assistant", content: finalReply });
+    saveMem();
+  } catch (e) {
+    botDiv.textContent = "Error: " + e.message;
+  }
+}
+
+function sendText() {
+  const input = document.getElementById('textInput');
+  const text = input.value;
+  input.value = '';
+  process(text);
+}
+
+function startVoice() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) { alert('Voice input not supported on this browser.'); return; }
+  const micBtn = document.getElementById('micBtn');
+  const rec = new Recognition();
+  rec.lang = 'en-US';
+  micBtn.classList.add('listening');
+  rec.onresult = (e) => { process(e.results[0][0].transcript); };
+  rec.onend = () => micBtn.classList.remove('listening');
+  rec.onerror = () => micBtn.classList.remove('listening');
+  rec.start();
+}
+</script>
+</body>
+</html>
